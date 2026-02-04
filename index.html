@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relative Motion Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            touch-action: none; /* Prevent scrolling while dragging on canvas */
+        }
+
+        .canvas-container {
+            background-color: #f1f5f9;
+        }
+
+        /* Custom Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+            margin-top: -6px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+        }
+        
+        .grab-cursor {
+            cursor: grab;
+        }
+        .grabbing-cursor {
+            cursor: grabbing;
+        }
+        
+        /* Analysis Overlay Transition */
+        #analysis-overlay {
+            transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col text-slate-800 overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shadow-sm z-10 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 text-white p-2 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"/><path d="m19 9 3 3-3 3"/><path d="M22 12A10 10 0 0 0 12 2v20a10 10 0 0 0 10-10z"/></svg>
+            </div>
+            <h1 class="font-bold text-lg tracking-tight">Relative Motion Lab</h1>
+        </div>
+        <div class="flex bg-slate-100 p-1 rounded-lg">
+            <button id="mode-river" onclick="setMode('river')" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all shadow-sm bg-white text-blue-700">River Boat</button>
+            <button id="mode-plane" onclick="setMode('plane')" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all text-slate-500 hover:text-slate-700">Airplane</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- Canvas Area -->
+        <div class="relative flex-1 bg-slate-200 overflow-hidden flex items-center justify-center canvas-container" id="canvas-wrapper">
+            <canvas id="simCanvas" class="shadow-xl bg-white rounded-md"></canvas>
+            
+            <!-- Overlay Stats -->
+            <div class="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
+                <div class="stat-card px-4 py-2 rounded-lg border border-slate-200 shadow-sm min-w-[180px]">
+                    <div class="text-xs text-slate-500 uppercase tracking-wider font-semibold">Resultant Speed</div>
+                    <div class="text-xl font-bold text-slate-800"><span id="val-vnet">0.0</span> m/s</div>
+                </div>
+                <div class="stat-card px-4 py-2 rounded-lg border border-slate-200 shadow-sm min-w-[180px]">
+                    <div class="text-xs text-slate-500 uppercase tracking-wider font-semibold">Drift / Ground Angle</div>
+                    <div class="text-xl font-bold text-slate-800"><span id="val-angle">0.0</span></div>
+                </div>
+                <div class="stat-card px-4 py-2 rounded-lg border border-slate-200 shadow-sm min-w-[180px]">
+                    <div class="text-xs text-slate-500 uppercase tracking-wider font-semibold">Time</div>
+                    <div class="text-xl font-bold text-slate-800"><span id="val-time">0.0</span> s</div>
+                </div>
+            </div>
+            
+            <!-- Hints -->
+            <div id="drag-hint" class="hidden absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-2 rounded-lg border border-slate-200 shadow-sm text-xs font-medium text-emerald-600 pointer-events-none z-10">
+                Drag the target to move it
+            </div>
+
+            <!-- Vector Analysis Overlay (Replaces on-canvas components) -->
+            <div id="analysis-overlay" class="hidden absolute right-4 top-20 bg-white/95 backdrop-blur shadow-lg rounded-xl p-4 border border-slate-200 z-30 w-72">
+                <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-100">
+                    <h3 class="text-sm font-bold text-slate-800">Vector Analysis</h3>
+                    <button onclick="document.getElementById('check-components').click()" class="text-slate-400 hover:text-slate-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                
+                <!-- Mini Canvas for Vector Diagram -->
+                <div class="flex justify-center mb-3 bg-slate-50 rounded border border-slate-100 relative">
+                    <canvas id="analysis-canvas" width="240" height="160"></canvas>
+                    <div class="absolute top-1 left-2 text-[10px] text-slate-400 font-mono">Tip-to-Tail Diagram</div>
+                </div>
+                
+                <!-- Component Table -->
+                <div class="text-xs">
+                    <div class="grid grid-cols-3 gap-2 pb-1 font-semibold text-slate-500 border-b border-slate-100 mb-1">
+                        <div>Vector</div>
+                        <div class="text-right">X (Horiz)</div>
+                        <div class="text-right">Y (Vert)</div>
+                    </div>
+                    
+                    <!-- Object Row -->
+                    <div class="grid grid-cols-3 gap-2 py-1 items-center">
+                        <div class="flex items-center gap-1.5 font-medium text-red-600">
+                            <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                            <span id="lbl-obj">Boat</span>
+                        </div>
+                        <div class="text-right font-mono" id="val-ox">0.0</div>
+                        <div class="text-right font-mono" id="val-oy">0.0</div>
+                    </div>
+
+                    <!-- Medium Row -->
+                    <div class="grid grid-cols-3 gap-2 py-1 items-center">
+                        <div class="flex items-center gap-1.5 font-medium text-blue-600">
+                            <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+                            <span id="lbl-med">River</span>
+                        </div>
+                        <div class="text-right font-mono" id="val-mx">0.0</div>
+                        <div class="text-right font-mono" id="val-my">0.0</div>
+                    </div>
+
+                    <!-- Resultant Row -->
+                    <div class="grid grid-cols-3 gap-2 py-1 items-center border-t border-slate-100 mt-1 pt-1 bg-purple-50/50 rounded-sm">
+                        <div class="flex items-center gap-1.5 font-bold text-purple-700">
+                            <div class="w-2 h-2 rounded-full bg-purple-600"></div>
+                            <span>Resultant</span>
+                        </div>
+                        <div class="text-right font-mono font-bold text-purple-700" id="val-rx">0.0</div>
+                        <div class="text-right font-mono font-bold text-purple-700" id="val-ry">0.0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simple Legend (Only visible if Analysis is hidden, or stick to bottom) -->
+            <div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur px-4 py-3 rounded-lg border border-slate-200 shadow-sm text-xs pointer-events-none z-0">
+                <div class="flex items-center gap-2 mb-1">
+                    <div class="w-8 h-0.5 bg-red-500 rounded-full"></div>
+                    <span class="font-medium">Object Velocity (V<sub>o</sub>)</span>
+                </div>
+                <div class="flex items-center gap-2 mb-1">
+                    <div class="w-8 h-0.5 bg-blue-500 rounded-full"></div>
+                    <span class="font-medium">Medium Velocity (V<sub>m</sub>)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-0.5 bg-purple-600 rounded-full"></div>
+                    <span class="font-medium">Resultant (V<sub>g</sub>)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Sidebar -->
+        <aside class="w-full lg:w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 overflow-y-auto">
+            <div class="p-6 space-y-8">
+                
+                <!-- Playback Controls -->
+                <div class="flex gap-2">
+                    <button id="btn-start" onclick="togglePlay()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold shadow-sm transition-colors flex items-center justify-center gap-2">
+                        <svg id="icon-play" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <span id="text-play">Start</span>
+                    </button>
+                    <button onclick="resetSim()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors border border-slate-200" title="Reset Simulation">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg>
+                    </button>
+                </div>
+
+                <!-- Parameters -->
+                <div class="space-y-6">
+
+                    <!-- Reset Target Button -->
+                     <button onclick="resetTarget()" class="w-full py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-semibold border border-emerald-200 flex items-center justify-center gap-2 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                        Reset Target Location
+                    </button>
+                    
+                    <!-- Object Settings -->
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 pb-1 border-b border-slate-100">
+                            <span id="label-obj-header">Boat Parameters</span>
+                        </h3>
+                        
+                        <!-- Speed Object -->
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="text-xs font-medium text-slate-500">Speed (|<span class="font-bold text-red-500">v<sub>o</sub></span>|)</label>
+                                <span class="text-xs font-mono font-bold text-slate-700"><span id="disp-v-obj">5</span> m/s</span>
+                            </div>
+                            <input type="range" id="input-v-obj" min="0" max="15" step="0.5" value="5" class="w-full">
+                        </div>
+
+                        <!-- Angle Object -->
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="text-xs font-medium text-slate-500">Heading (Bearing)</label>
+                                <span class="text-xs font-mono font-bold text-slate-700"><span id="disp-theta-obj">0</span>°</span>
+                            </div>
+                            <input type="range" id="input-theta-obj" min="-90" max="90" step="1" value="0" class="w-full">
+                            <p id="hint-theta-obj" class="text-[10px] text-slate-400 mt-1">Center is North. Slide Left for West, Right for East.</p>
+                        </div>
+                    </div>
+
+                    <!-- Medium Settings -->
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 pb-1 border-b border-slate-100">
+                            <span id="label-med-header">River Parameters</span>
+                        </h3>
+
+                        <!-- Speed Medium -->
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="text-xs font-medium text-slate-500">Velocity (|<span class="font-bold text-blue-500">v<sub>m</sub></span>|)</label>
+                                <span class="text-xs font-mono font-bold text-slate-700"><span id="disp-v-med">3</span> m/s</span>
+                            </div>
+                            <input type="range" id="input-v-med" min="0" max="10" step="0.5" value="3" class="w-full">
+                        </div>
+
+                        <!-- Angle Medium (Only for Plane) -->
+                        <div id="container-theta-med" class="opacity-50 pointer-events-none transition-opacity">
+                            <div class="flex justify-between mb-1">
+                                <label class="text-xs font-medium text-slate-500">Wind Direction</label>
+                                <span class="text-xs font-mono font-bold text-slate-700"><span id="disp-theta-med">90</span>°</span>
+                            </div>
+                            <input type="range" id="input-theta-med" min="0" max="360" step="5" value="90" class="w-full">
+                        </div>
+                    </div>
+
+                    <!-- Display Options -->
+                    <div class="pt-4 border-t border-slate-100 space-y-3">
+                        <div class="flex flex-col gap-1">
+                             <label class="text-xs font-medium text-slate-500">Angle Notation</label>
+                             <select id="select-notation" class="text-sm p-1.5 border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                 <option value="bearing">Bearing (0° - 360°)</option>
+                                 <option value="quadrant">Quadrant (N 32° E)</option>
+                             </select>
+                        </div>
+
+                        <div class="flex flex-col gap-2">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="check-trails" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300" checked>
+                                <span class="text-sm text-slate-600">Show Path Trail</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="check-vectors" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300" checked>
+                                <span class="text-sm text-slate-600">Show Vectors (On Object)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="check-components" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300">
+                                <span class="text-sm text-slate-600">Show Vector Analysis</span>
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            
+            <div class="mt-auto p-4 bg-slate-50 border-t border-slate-200 text-center">
+                <p class="text-xs text-slate-400">Physics Simulation Engine v1.9 + Easter Egg</p>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        // --- Configuration & State ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const wrapper = document.getElementById('canvas-wrapper');
+
+        // Analysis Canvas
+        const analysisCanvas = document.getElementById('analysis-canvas');
+        const actx = analysisCanvas.getContext('2d');
+
+        // Physics State
+        const state = {
+            mode: 'river', // 'river' or 'plane'
+            running: false,
+            time: 0,
+            dt: 0.016, // seconds per frame (approx 60fps)
+            
+            // Object (Boat/Plane)
+            pos: { x: 0, y: 0 },
+            vObj: 5,        // magnitude
+            thetaObj: 0,    // BEARING: 0 is North, 90 is East. Stored as true bearing 0-360.
+            
+            // Medium (River/Wind)
+            vMed: 3,
+            thetaMed: 90,   // BEARING: 0 is North, 90 is East (River flows East)
+            
+            // Destination (Plane Mode)
+            destination: {
+                x: 0,
+                y: 0,
+                radius: 30,
+                dragging: false
+            },
+
+            // Cabin (River Mode)
+            cabin: {
+                x: 0, // Set in resize
+                y: 0, // Set in resize
+                width: 30,
+                height: 25,
+                dragging: false
+            },
+            
+            // Easter Egg Croc
+            croc: {
+                active: false,
+                x: 0,
+                y: 0,
+                phase: 0, // Tail wag
+                state: 'hidden', // hidden, surfacing, swimming, diving
+                opacity: 0,
+                timer: 0
+            },
+            
+            // Rendering
+            scale: 40,      // pixels per meter
+            trail: [],
+            width: 0,
+            height: 0,
+            
+            // Background Animation
+            particles: [], // Array of {x, y, speedMult, length}
+            
+            // Boundary
+            topBankY: 50
+        };
+
+        // UI Elements
+        const ui = {
+            dispVObj: document.getElementById('disp-v-obj'),
+            dispThetaObj: document.getElementById('disp-theta-obj'),
+            dispVMed: document.getElementById('disp-v-med'),
+            dispThetaMed: document.getElementById('disp-theta-med'),
+            
+            inputVObj: document.getElementById('input-v-obj'),
+            inputThetaObj: document.getElementById('input-theta-obj'),
+            inputVMed: document.getElementById('input-v-med'),
+            inputThetaMed: document.getElementById('input-theta-med'),
+            
+            hintThetaObj: document.getElementById('hint-theta-obj'),
+            selectNotation: document.getElementById('select-notation'),
+            containerThetaMed: document.getElementById('container-theta-med'),
+            dragHint: document.getElementById('drag-hint'),
+            
+            // Analysis Overlay Elements
+            overlay: document.getElementById('analysis-overlay'),
+            lblObj: document.getElementById('lbl-obj'),
+            lblMed: document.getElementById('lbl-med'),
+            valOx: document.getElementById('val-ox'),
+            valOy: document.getElementById('val-oy'),
+            valMx: document.getElementById('val-mx'),
+            valMy: document.getElementById('val-my'),
+            valRx: document.getElementById('val-rx'),
+            valRy: document.getElementById('val-ry'),
+            
+            valVNet: document.getElementById('val-vnet'),
+            valAngle: document.getElementById('val-angle'),
+            valTime: document.getElementById('val-time'),
+            
+            btnPlay: document.getElementById('btn-start'),
+            textPlay: document.getElementById('text-play'),
+            iconPlay: document.getElementById('icon-play'),
+            
+            checkTrails: document.getElementById('check-trails'),
+            checkVectors: document.getElementById('check-vectors'),
+            checkComponents: document.getElementById('check-components'),
+
+            labels: {
+                objHeader: document.getElementById('label-obj-header'),
+                medHeader: document.getElementById('label-med-header'),
+            }
+        };
+
+        // --- Helpers: Angle Conversion ---
+
+        function toMathAngle(bearing) {
+            return (90 - bearing) * Math.PI / 180;
+        }
+
+        function toBearing(rad) {
+            let deg = rad * 180 / Math.PI;
+            let bearing = 90 - deg;
+            bearing = bearing % 360;
+            if (bearing < 0) bearing += 360;
+            return bearing;
+        }
+
+        function formatAngle(bearing) {
+            if (ui.selectNotation.value === 'quadrant') {
+                bearing = bearing % 360;
+                if (bearing < 0) bearing += 360;
+                
+                let dir1, dir2, angle;
+                
+                if (Math.abs(bearing - 0) < 0.1 || Math.abs(bearing - 360) < 0.1) return "Due North";
+                if (Math.abs(bearing - 90) < 0.1) return "Due East";
+                if (Math.abs(bearing - 180) < 0.1) return "Due South";
+                if (Math.abs(bearing - 270) < 0.1) return "Due West";
+
+                if (bearing < 90) {
+                    dir1 = "N"; dir2 = "E"; angle = bearing;
+                } else if (bearing < 180) {
+                    dir1 = "S"; dir2 = "E"; angle = 180 - bearing;
+                } else if (bearing < 270) {
+                    dir1 = "S"; dir2 = "W"; angle = bearing - 180;
+                } else {
+                    dir1 = "N"; dir2 = "W"; angle = 360 - bearing;
+                }
+                return `[${dir1} ${angle.toFixed(1)}° ${dir2}]`;
+            } else {
+                return `${bearing.toFixed(1)}°`;
+            }
+        }
+
+        // --- Interaction Logic (Dragging) ---
+
+        function getPointerPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function handleInputStart(e) {
+            const pos = getPointerPos(e);
+            
+            if (state.mode === 'plane') {
+                // Check distance to destination center
+                const dist = Math.hypot(pos.x - state.destination.x, pos.y - state.destination.y);
+                
+                if (dist < state.destination.radius + 10) { 
+                    state.destination.dragging = true;
+                    canvas.classList.add('grabbing-cursor');
+                    canvas.classList.remove('grab-cursor');
+                }
+            } else if (state.mode === 'river') {
+                // Check cabin bounds
+                const cx = state.cabin.x;
+                const cy = state.topBankY - state.cabin.height/2; 
+                if (Math.abs(pos.x - cx) < 30 && Math.abs(pos.y - cy) < 30) {
+                   state.cabin.dragging = true;
+                   canvas.classList.add('grabbing-cursor');
+                   canvas.classList.remove('grab-cursor');
+                }
+            }
+        }
+
+        function handleInputMove(e) {
+            const pos = getPointerPos(e);
+            
+            if (state.mode === 'plane') {
+                if (state.destination.dragging) {
+                    state.destination.x = pos.x;
+                    state.destination.y = pos.y;
+                    if (!state.running) draw();
+                } else {
+                    const dist = Math.hypot(pos.x - state.destination.x, pos.y - state.destination.y);
+                    if (dist < state.destination.radius + 10) canvas.classList.add('grab-cursor');
+                    else canvas.classList.remove('grab-cursor');
+                }
+            } else if (state.mode === 'river') {
+                if (state.cabin.dragging) {
+                    state.cabin.x = Math.max(0, Math.min(state.width, pos.x)); // Clamp to screen
+                    // Snap Logic
+                    if (Math.abs(state.cabin.x - state.width/2) < 20) {
+                        state.cabin.x = state.width/2;
+                    }
+                    if (!state.running) draw();
+                } else {
+                    const cx = state.cabin.x;
+                    const cy = state.topBankY - state.cabin.height/2; 
+                    if (Math.abs(pos.x - cx) < 30 && Math.abs(pos.y - cy) < 30) canvas.classList.add('grab-cursor');
+                    else canvas.classList.remove('grab-cursor');
+                }
+            }
+        }
+
+        function handleInputEnd(e) {
+            state.destination.dragging = false;
+            state.cabin.dragging = false;
+            canvas.classList.remove('grabbing-cursor');
+        }
+
+        function resetTarget() {
+            if (state.mode === 'river') {
+                state.cabin.x = state.width / 2;
+            } else {
+                state.destination.x = state.width * 0.8;
+                state.destination.y = state.height * 0.2;
+            }
+            if(!state.running) draw();
+        }
+
+        // --- Initialization ---
+
+        function initParticles() {
+            state.particles = [];
+            const count = 50;
+            for(let i=0; i<count; i++) {
+                state.particles.push({
+                    x: Math.random() * state.width,
+                    y: Math.random() * state.height,
+                    speedMult: 0.5 + Math.random() * 1.0, 
+                    length: 10 + Math.random() * 20
+                });
+            }
+        }
+
+        function resize() {
+            const rect = wrapper.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            state.width = canvas.width;
+            state.height = canvas.height;
+            
+            initParticles();
+
+            // Re-center destination if off screen or init
+            if (state.destination.x === 0 || state.destination.x > state.width) {
+                 state.destination.x = state.width * 0.8;
+                 state.destination.y = state.height * 0.2;
+            }
+            // Init cabin center
+            if (state.cabin.x === 0) state.cabin.x = state.width / 2;
+            else state.cabin.x = Math.min(state.width, Math.max(0, state.cabin.x)); // Keep on screen resize
+
+            if (!state.running && state.time === 0) {
+                resetPos();
+            }
+            draw();
+            updateAnalysis();
+        }
+
+        window.addEventListener('resize', resize);
+
+        function resetPos() {
+            state.trail = [];
+            state.time = 0;
+            
+            if (state.mode === 'river') {
+                state.pos.x = state.width / 2;
+                state.pos.y = state.height - 50; 
+            } else {
+                // Plane starts in the center
+                state.pos.x = state.width / 2;
+                state.pos.y = state.height / 2;
+            }
+            
+            state.trail.push({...state.pos});
+        }
+
+        function init() {
+            resize();
+            setMode('river'); 
+            initParticles();
+            draw();
+            updateAnalysis();
+            
+            // Listeners
+            ui.inputVObj.addEventListener('input', (e) => { state.vObj = parseFloat(e.target.value); updateUI(); if(!state.running) draw(); });
+            ui.inputThetaObj.addEventListener('input', (e) => { 
+                const val = parseFloat(e.target.value);
+                if (state.mode === 'river') {
+                    if (val < 0) state.thetaObj = 360 + val;
+                    else state.thetaObj = val;
+                } else {
+                    state.thetaObj = val;
+                }
+                updateUI(); if(!state.running) draw(); 
+            });
+            ui.inputVMed.addEventListener('input', (e) => { state.vMed = parseFloat(e.target.value); updateUI(); if(!state.running) draw(); });
+            ui.inputThetaMed.addEventListener('input', (e) => { state.thetaMed = parseFloat(e.target.value); updateUI(); if(!state.running) draw(); });
+            ui.selectNotation.addEventListener('change', () => { updateUI(); draw(); });
+            ui.checkTrails.addEventListener('change', draw);
+            ui.checkVectors.addEventListener('change', draw);
+            
+            // Analysis Toggle Logic
+            ui.checkComponents.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    ui.overlay.classList.remove('hidden');
+                    updateAnalysis();
+                } else {
+                    ui.overlay.classList.add('hidden');
+                }
+                draw(); // Redraw main canvas (though components are gone now)
+            });
+
+            // Drag Events
+            canvas.addEventListener('mousedown', handleInputStart);
+            canvas.addEventListener('mousemove', handleInputMove);
+            window.addEventListener('mouseup', handleInputEnd);
+            canvas.addEventListener('touchstart', handleInputStart, {passive: false});
+            canvas.addEventListener('touchmove', handleInputMove, {passive: false});
+            window.addEventListener('touchend', handleInputEnd);
+            
+            requestAnimationFrame(animationLoop);
+        }
+
+        // --- Logic ---
+
+        function setMode(mode) {
+            state.mode = mode;
+            
+            const riverBtn = document.getElementById('mode-river');
+            const planeBtn = document.getElementById('mode-plane');
+            
+            if (mode === 'river') {
+                riverBtn.className = "px-4 py-1.5 rounded-md text-sm font-medium transition-all shadow-sm bg-white text-blue-700";
+                planeBtn.className = "px-4 py-1.5 rounded-md text-sm font-medium transition-all text-slate-500 hover:text-slate-700";
+                
+                ui.labels.objHeader.innerText = "Boat Parameters";
+                ui.labels.medHeader.innerText = "River Parameters";
+                ui.lblObj.innerText = "Boat";
+                ui.lblMed.innerText = "River";
+                ui.dragHint.classList.remove('hidden');
+                ui.dragHint.innerText = "Drag the cabin to set target";
+                
+                state.thetaMed = 90;
+                state.scale = 40; // Zoom In for River
+                ui.containerThetaMed.classList.add('opacity-50', 'pointer-events-none');
+                
+                // Set Sliders for River
+                ui.inputVObj.max = 15; ui.inputVObj.step = 0.5;
+                if(state.vObj > 15) state.vObj = 5;
+                
+                ui.inputVMed.max = 10; ui.inputVMed.step = 0.5;
+                if(state.vMed > 10) state.vMed = 3;
+
+                ui.inputThetaObj.min = -90;
+                ui.inputThetaObj.max = 90;
+                ui.inputThetaObj.value = 0;
+                ui.hintThetaObj.innerText = "Center is North. Slide Left for West, Right for East.";
+                
+                state.thetaObj = 0; 
+                state.cabin.x = state.width / 2; // Reset cabin to center
+
+            } else {
+                planeBtn.className = "px-4 py-1.5 rounded-md text-sm font-medium transition-all shadow-sm bg-white text-blue-700";
+                riverBtn.className = "px-4 py-1.5 rounded-md text-sm font-medium transition-all text-slate-500 hover:text-slate-700";
+                
+                ui.labels.objHeader.innerText = "Plane Parameters";
+                ui.labels.medHeader.innerText = "Wind Parameters";
+                ui.lblObj.innerText = "Plane";
+                ui.lblMed.innerText = "Wind";
+                ui.dragHint.classList.remove('hidden');
+                ui.dragHint.innerText = "Drag the target circle to set destination";
+                
+                ui.containerThetaMed.classList.remove('opacity-50', 'pointer-events-none');
+                
+                state.scale = 0.5; // Zoom Out significantly for Plane (allows 200m/s speeds)
+                
+                // Set Sliders for Plane (Higher Speeds)
+                ui.inputVObj.max = 500; ui.inputVObj.step = 10;
+                if(state.vObj < 20) state.vObj = 250; // Set a reasonable default plane speed
+                
+                ui.inputVMed.max = 100; ui.inputVMed.step = 5;
+                if(state.vMed < 5) state.vMed = 40;
+
+                ui.inputThetaObj.min = 0;
+                ui.inputThetaObj.max = 360;
+                ui.inputThetaObj.value = 0;
+                ui.hintThetaObj.innerText = "0° is North, 90° is East. Fly any direction.";
+                
+                state.thetaObj = 0;
+                
+                // Initialize destination if needed
+                state.destination.x = state.width * 0.8;
+                state.destination.y = state.height * 0.2;
+            }
+            
+            resetSim();
+            updateUI();
+        }
+
+        function updateUI() {
+            ui.dispVObj.innerText = state.vObj.toFixed(1);
+            ui.dispThetaObj.innerText = formatAngle(state.thetaObj);
+            ui.dispVMed.innerText = state.vMed.toFixed(1);
+            ui.dispThetaMed.innerText = formatAngle(state.thetaMed);
+            
+            ui.inputThetaMed.value = state.thetaMed;
+            // Ensure inputs match state (helpful when switching modes updates values)
+            ui.inputVObj.value = state.vObj;
+            ui.inputVMed.value = state.vMed;
+            
+            const radObj = toMathAngle(state.thetaObj);
+            const radMed = toMathAngle(state.thetaMed);
+            const vOx = state.vObj * Math.cos(radObj);
+            const vOy = state.vObj * Math.sin(radObj);
+            const vMx = state.vMed * Math.cos(radMed);
+            const vMy = state.vMed * Math.sin(radMed);
+            const vRx = vOx + vMx;
+            const vRy = vOy + vMy;
+            
+            const vNet = Math.sqrt(vRx*vRx + vRy*vRy);
+            const angleNetRad = Math.atan2(vRy, vRx); 
+            const bearingNet = toBearing(angleNetRad);
+            
+            ui.valVNet.innerText = vNet.toFixed(2);
+            ui.valAngle.innerText = formatAngle(bearingNet);
+            ui.valTime.innerText = state.time.toFixed(2);
+            
+            // Update Analysis Overlay Values
+            updateAnalysis();
+        }
+
+        // --- New Function: Draw Analysis Canvas ---
+        function updateAnalysis() {
+            if (ui.overlay.classList.contains('hidden')) return;
+
+            // 1. Calculations
+            const radObj = toMathAngle(state.thetaObj);
+            const radMed = toMathAngle(state.thetaMed);
+            
+            const vOx = state.vObj * Math.cos(radObj);
+            const vOy = state.vObj * Math.sin(radObj);
+            const vMx = state.vMed * Math.cos(radMed);
+            const vMy = state.vMed * Math.sin(radMed);
+            const vRx = vOx + vMx;
+            const vRy = vOy + vMy;
+
+            // Update Text Values
+            ui.valOx.innerText = vOx.toFixed(1);
+            ui.valOy.innerText = vOy.toFixed(1);
+            ui.valMx.innerText = vMx.toFixed(1);
+            ui.valMy.innerText = vMy.toFixed(1);
+            ui.valRx.innerText = vRx.toFixed(1);
+            ui.valRy.innerText = vRy.toFixed(1);
+
+            // 2. Draw Mini Canvas
+            const w = analysisCanvas.width;
+            const h = analysisCanvas.height;
+            const cx = w / 2;
+            const cy = h / 2;
+            
+            actx.clearRect(0, 0, w, h);
+            
+            // Draw Grid/Axes
+            actx.strokeStyle = '#e2e8f0';
+            actx.lineWidth = 1;
+            actx.beginPath();
+            actx.moveTo(0, cy); actx.lineTo(w, cy); // X Axis
+            actx.moveTo(cx, 0); actx.lineTo(cx, h); // Y Axis
+            actx.stroke();
+
+            // Determine Scale for Mini Canvas
+            const maxMag = state.vObj + state.vMed;
+            const padding = 15;
+            const availRad = Math.min(w, h) / 2 - padding;
+            const scale = (maxMag > 0.1 ? availRad / maxMag : 1) * 1.5; 
+
+            // Helper to draw arrow
+            function drawMiniArrow(fx, fy, vx, vy, color, dash = []) {
+                const tx = fx + vx * scale;
+                const ty = fy - vy * scale; // Canvas Y flip
+                
+                actx.beginPath();
+                actx.moveTo(fx, fy);
+                actx.lineTo(tx, ty);
+                actx.strokeStyle = color;
+                actx.lineWidth = 2;
+                actx.setLineDash(dash);
+                actx.stroke();
+                actx.setLineDash([]);
+                
+                // Arrowhead
+                const head = 6;
+                const angle = Math.atan2(-vy, vx);
+                actx.beginPath();
+                actx.moveTo(tx, ty);
+                actx.lineTo(tx - head * Math.cos(angle - Math.PI/6), ty - head * Math.sin(angle - Math.PI/6));
+                actx.lineTo(tx - head * Math.cos(angle + Math.PI/6), ty - head * Math.sin(angle + Math.PI/6));
+                actx.fillStyle = color;
+                actx.fill();
+            }
+
+            // Draw Tip-to-Tail Diagram
+            // 1. V_obj (Red) from Origin
+            drawMiniArrow(cx, cy, vOx, vOy, '#ef4444');
+            
+            // 2. V_med (Blue) from Tip of Red
+            const tipRx = cx + vOx * scale;
+            const tipRy = cy - vOy * scale;
+            drawMiniArrow(tipRx, tipRy, vMx, vMy, '#3b82f6');
+
+            // 3. V_res (Purple) from Origin to Tip of Blue
+            drawMiniArrow(cx, cy, vRx, vRy, '#9333ea');
+            
+            // 4. Component Projections for Resultant (Dashed)
+            actx.strokeStyle = '#d8b4fe'; // Light purple
+            actx.setLineDash([3, 3]);
+            actx.lineWidth = 1;
+            const finalX = cx + vRx * scale;
+            const finalY = cy - vRy * scale;
+            
+            actx.beginPath();
+            actx.moveTo(cx, finalY); actx.lineTo(finalX, finalY); // Horiz to tip
+            actx.stroke();
+            
+            actx.beginPath();
+            actx.moveTo(finalX, cy); actx.lineTo(finalX, finalY); // Vert to tip
+            actx.stroke();
+            actx.setLineDash([]);
+        }
+
+
+        function updatePhysics() {
+            const radObj = toMathAngle(state.thetaObj);
+            const radMed = toMathAngle(state.thetaMed);
+            const vOx = state.vObj * Math.cos(radObj);
+            const vOy = state.vObj * Math.sin(radObj);
+            const vMx = state.vMed * Math.cos(radMed);
+            const vMy = state.vMed * Math.sin(radMed);
+            const vRx = vOx + vMx;
+            const vRy = vOy + vMy;
+            
+            const dx = vRx * state.scale * state.dt;
+            const dy = -vRy * state.scale * state.dt; 
+            
+            const nextX = state.pos.x + dx;
+            const nextY = state.pos.y + dy;
+
+            // River Bank Check (Specific to River Mode)
+            if (state.mode === 'river' && nextY <= state.topBankY) {
+                if (dy < 0) {
+                    const remainingDist = state.pos.y - state.topBankY;
+                    const fraction = remainingDist / Math.abs(dy);
+                    state.pos.y = state.topBankY;
+                    state.pos.x += dx * fraction;
+                    state.time += state.dt * fraction;
+                }
+                if (state.trail.length === 0 || Math.hypot(state.pos.x - state.trail[state.trail.length-1].x, state.pos.y - state.trail[state.trail.length-1].y) > 1) {
+                    state.trail.push({...state.pos});
+                }
+                togglePlay();
+                updateUI();
+                return;
+            }
+            
+            // Plane Check: Destination OR Edge Collision
+            if (state.mode === 'plane') {
+                // 1. Destination Arrival
+                const dist = Math.hypot(nextX - state.destination.x, nextY - state.destination.y);
+                
+                if (dist < 10) { 
+                    state.pos.x = state.destination.x;
+                    state.pos.y = state.destination.y;
+                    if (state.trail.length === 0 || Math.hypot(state.pos.x - state.trail[state.trail.length-1].x, state.pos.y - state.trail[state.trail.length-1].y) > 1) {
+                        state.trail.push({...state.pos});
+                    }
+                    togglePlay();
+                    updateUI();
+                    return;
+                }
+                
+                // 2. Edge Collision (Stop at border)
+                if (nextX < 0 || nextX > state.width || nextY < 0 || nextY > state.height) {
+                    state.pos.x = Math.max(0, Math.min(state.width, nextX));
+                    state.pos.y = Math.max(0, Math.min(state.height, nextY));
+                    
+                    if (state.trail.length === 0 || Math.hypot(state.pos.x - state.trail[state.trail.length-1].x, state.pos.y - state.trail[state.trail.length-1].y) > 1) {
+                        state.trail.push({...state.pos});
+                    }
+                    togglePlay();
+                    updateUI();
+                    return;
+                }
+            }
+
+            state.pos.x = nextX;
+            state.pos.y = nextY;
+            state.time += state.dt;
+            
+            if (state.trail.length === 0 || Math.hypot(state.pos.x - state.trail[state.trail.length-1].x, state.pos.y - state.trail[state.trail.length-1].y) > 5) {
+                state.trail.push({...state.pos});
+            }
+            
+            const boundaryBuffer = 100;
+            if (state.pos.x < -boundaryBuffer || state.pos.x > state.width + boundaryBuffer || state.pos.y < -boundaryBuffer || state.pos.y > state.height + boundaryBuffer) {
+                togglePlay();
+            }
+
+            updateUI();
+        }
+
+        function animationLoop() {
+            // General Particles
+            const radMed = toMathAngle(state.thetaMed);
+            const vMx = state.vMed * Math.cos(radMed);
+            const vMy = state.vMed * Math.sin(radMed);
+            const bgSpeedScale = state.scale * 0.016; 
+
+            state.particles.forEach(p => {
+                p.x += vMx * bgSpeedScale * p.speedMult;
+                p.y += -vMy * bgSpeedScale * p.speedMult;
+
+                if (p.x > state.width) p.x -= state.width;
+                if (p.x < 0) p.x += state.width;
+                if (p.y > state.height) p.y -= state.height;
+                if (p.y < 0) p.y += state.height;
+            });
+
+            // --- Easter Egg Crocodile Logic ---
+            if (state.mode === 'river') {
+                // Spawn logic (0.1% chance per frame if hidden)
+                if (state.croc.state === 'hidden' && Math.random() < 0.0001) {
+                    state.croc.state = 'surfacing';
+                    state.croc.x = -50; // Start off screen left usually, or random
+                    // Actually let's start random X if river is still, but if flowing, move with flow?
+                    // Let's spawn randomly in the middle 80% of river height
+                    state.croc.y = state.topBankY + 20 + Math.random() * (state.height - 100);
+                    state.croc.x = Math.random() * state.width;
+                    state.croc.opacity = 0;
+                    state.croc.timer = 0;
+                }
+
+                if (state.croc.state !== 'hidden') {
+                    // Move slightly with current + swim speed
+                    // River flow is vMx. Croc swims a bit slower or faster.
+                    const swimSpeed = 20 * 0.016; // constant slow swim
+                    // Move with river?
+                    state.croc.x += vMx * bgSpeedScale + 0.2; 
+                    state.croc.phase += 0.15; // Tail wag speed
+
+                    // State machine
+                    if (state.croc.state === 'surfacing') {
+                        state.croc.opacity += 0.01;
+                        if (state.croc.opacity >= 1) {
+                            state.croc.opacity = 1;
+                            state.croc.state = 'swimming';
+                            state.croc.timer = 0;
+                        }
+                    } else if (state.croc.state === 'swimming') {
+                        state.croc.timer++;
+                        if (state.croc.timer > 300) { // Swim for ~5 seconds
+                            state.croc.state = 'diving';
+                        }
+                    } else if (state.croc.state === 'diving') {
+                        state.croc.opacity -= 0.01;
+                        if (state.croc.opacity <= 0) {
+                            state.croc.opacity = 0;
+                            state.croc.state = 'hidden';
+                        }
+                    }
+                    
+                    // Wrap X
+                    if (state.croc.x > state.width + 50) state.croc.state = 'hidden';
+                }
+            }
+
+            if (state.running) updatePhysics();
+            draw();
+            requestAnimationFrame(animationLoop);
+        }
+
+        function togglePlay() {
+            state.running = !state.running;
+            if (state.running) {
+                ui.textPlay.innerText = "Pause";
+                ui.iconPlay.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+                ui.btnPlay.classList.add('bg-amber-600', 'hover:bg-amber-700');
+                ui.btnPlay.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            } else {
+                ui.textPlay.innerText = "Resume";
+                ui.iconPlay.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+                ui.btnPlay.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+                ui.btnPlay.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            }
+        }
+
+        function resetSim() {
+            state.running = false;
+            ui.textPlay.innerText = "Start";
+            ui.iconPlay.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+            ui.btnPlay.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+            ui.btnPlay.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            resetPos();
+            updateUI();
+            draw();
+        }
+
+        // --- Rendering ---
+
+        function drawArrow(ctx, fromX, fromY, vecX, vecY, color, scale = 1, label = "") {
+            const headlen = 10;
+            const toX = fromX + vecX * scale;
+            const toY = fromY - vecY * scale; 
+            const angle = Math.atan2(-vecY, vecX); 
+            
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.lineTo(toX, toY);
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        function drawCroc() {
+            if (state.croc.state === 'hidden') return;
+            
+            ctx.save();
+            ctx.translate(state.croc.x, state.croc.y);
+            ctx.globalAlpha = state.croc.opacity;
+            
+            // Draw Croc
+            // Body
+            ctx.fillStyle = '#15803d'; // Green-700
+            ctx.beginPath();
+            ctx.ellipse(0, 5, 25, 8, 0, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Tail (Wagging)
+            const tailWag = Math.sin(state.croc.phase) * 5;
+            ctx.beginPath();
+            ctx.moveTo(-20, 5);
+            ctx.quadraticCurveTo(-35, 5 + tailWag, -45, 5 + tailWag/2);
+            ctx.lineTo(-45, 5 + tailWag/2 + 2); // thickness
+            ctx.quadraticCurveTo(-35, 9 + tailWag, -20, 9);
+            ctx.fill();
+            
+            // Head/Snout
+            ctx.beginPath();
+            ctx.ellipse(20, 5, 12, 6, 0, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Eyes (Pop up)
+            ctx.fillStyle = 'white';
+            ctx.beginPath(); ctx.arc(10, -2, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(18, -2, 4, 0, Math.PI*2); ctx.fill();
+            
+            ctx.fillStyle = 'black'; // Pupils
+            ctx.beginPath(); ctx.arc(11, -2, 1.5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(19, -2, 1.5, 0, Math.PI*2); ctx.fill();
+            
+            // Nostrils
+            ctx.fillStyle = '#052e16';
+            ctx.beginPath(); ctx.arc(28, 3, 1, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(30, 3, 1, 0, Math.PI*2); ctx.fill();
+
+            // Water Ripple (if surfacing)
+            if (state.croc.state === 'surfacing' || state.croc.state === 'diving') {
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(0, 5, 35, 12, 0, 0, Math.PI*2);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function drawBackground() {
+            ctx.clearRect(0, 0, state.width, state.height);
+            ctx.save();
+            
+            if (state.mode === 'river') {
+                // River Background
+                ctx.fillStyle = '#60a5fa'; // Blue-400
+                ctx.fillRect(0, 0, state.width, state.height);
+                
+                // Croc (Under water lines but above blue base)
+                drawCroc();
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 2;
+                state.particles.forEach(p => {
+                    if (p.y > state.topBankY && p.y < state.height - 50) {
+                        const radMed = toMathAngle(state.thetaMed);
+                        const dx = Math.cos(radMed) * p.length;
+                        const dy = -Math.sin(radMed) * p.length;
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p.x + dx, p.y + dy);
+                        ctx.stroke();
+                    }
+                });
+
+                // Banks
+                const bankHeight = 50;
+                ctx.fillStyle = '#4ade80'; 
+                ctx.fillRect(0, 0, state.width, bankHeight); 
+                ctx.fillRect(0, state.height - bankHeight, state.width, bankHeight); 
+                
+                ctx.strokeStyle = '#15803d'; 
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(0, bankHeight); ctx.lineTo(state.width, bankHeight);
+                ctx.moveTo(0, state.height - bankHeight); ctx.lineTo(state.width, state.height - bankHeight);
+                ctx.stroke();
+
+                // Draw Cabin
+                const cx = state.cabin.x;
+                const cy = state.topBankY; // Bottom of cabin
+                
+                // Shadow / Snap Highlight
+                if (Math.abs(cx - state.width/2) < 2) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.beginPath(); ctx.arc(cx, cy - 10, 30, 0, Math.PI*2); ctx.fill();
+                }
+
+                ctx.fillStyle = '#78350f'; // Brown Base
+                ctx.fillRect(cx - 15, cy - 20, 30, 20); 
+                
+                ctx.beginPath(); // Roof
+                ctx.moveTo(cx - 20, cy - 20);
+                ctx.lineTo(cx, cy - 35);
+                ctx.lineTo(cx + 20, cy - 20);
+                ctx.fillStyle = '#92400e'; 
+                ctx.fill();
+                
+                // Door
+                ctx.fillStyle = '#451a03';
+                ctx.fillRect(cx - 5, cy - 12, 10, 12);
+
+
+            } else {
+                // Plane Mode (Sky)
+                ctx.fillStyle = '#bae6fd'; 
+                ctx.fillRect(0, 0, state.width, state.height);
+                
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                state.particles.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.length/4, 0, Math.PI*2);
+                    ctx.fill();
+                });
+                
+                // --- Destination Circle ---
+                const { x, y, radius, dragging } = state.destination;
+                
+                // Outer ring
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = dragging ? 'rgba(16, 185, 129, 0.4)' : 'rgba(16, 185, 129, 0.2)';
+                ctx.fill();
+                ctx.strokeStyle = '#10b981'; // Emerald-500
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Inner Target
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = '#059669'; // Emerald-700
+                ctx.fill();
+                
+                // Label
+                ctx.fillStyle = '#065f46';
+                ctx.font = "bold 12px Inter";
+                ctx.textAlign = "center";
+                ctx.fillText("DESTINATION", x, y + radius + 15);
+                ctx.textAlign = "start"; // Reset
+                
+                // Start Marker (Airfield)
+                const cx = state.width / 2;
+                const cy = state.height / 2;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+                ctx.beginPath(); ctx.moveTo(cx - 20, cy); ctx.lineTo(cx + 20, cy);
+                ctx.moveTo(cx, cy - 20); ctx.lineTo(cx, cy + 20);
+                ctx.stroke(); ctx.setLineDash([]);
+                ctx.fillStyle = '#64748b'; ctx.font = "bold 12px Inter";
+                ctx.fillText("AIRFIELD", cx + 15, cy + 15);
+            }
+            ctx.restore();
+        }
+
+        function drawObject() {
+            ctx.save();
+            ctx.translate(state.pos.x, state.pos.y);
+            const rotRad = (state.thetaObj - 90) * Math.PI / 180;
+            ctx.rotate(rotRad);
+
+            if (state.mode === 'river') {
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.moveTo(20, 0); ctx.bezierCurveTo(20, 10, -10, 10, -10, 10);
+                ctx.lineTo(-15, 0); ctx.lineTo(-10, -10); ctx.bezierCurveTo(-10, -10, 20, -10, 20, 0);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.beginPath(); ctx.arc(-5, 0, 5, 0, Math.PI*2); ctx.fill();
+            } else {
+                // Plane Body
+                ctx.fillStyle = '#cbd5e1'; // Light grey
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 30, 6, 0, 0, Math.PI*2); // Fuselage
+                ctx.fill();
+                
+                // Wings
+                ctx.fillStyle = '#94a3b8'; // Darker grey
+                ctx.beginPath();
+                ctx.moveTo(5, 0);
+                ctx.lineTo(-10, 25); // Right wing tip
+                ctx.lineTo(-15, 25);
+                ctx.lineTo(-5, 0);
+                ctx.lineTo(-15, -25); // Left wing tip
+                ctx.lineTo(-10, -25);
+                ctx.lineTo(5, 0);
+                ctx.fill();
+                
+                // Tail
+                ctx.beginPath();
+                ctx.moveTo(-20, 0);
+                ctx.lineTo(-28, 10);
+                ctx.lineTo(-32, 10);
+                ctx.lineTo(-25, 0);
+                ctx.lineTo(-32, -10);
+                ctx.lineTo(-28, -10);
+                ctx.lineTo(-20, 0);
+                ctx.fill();
+
+                // Cockpit
+                ctx.fillStyle = '#0ea5e9'; // Sky blue
+                ctx.beginPath();
+                ctx.ellipse(15, 0, 5, 3, 0, 0, Math.PI*2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawVectors() {
+            if (!ui.checkVectors.checked) return; // Only draw on object if "Show Vectors" is checked
+
+            // In plane mode, the scale is 0.5 (very small). 
+            // We need to scale UP the vector drawing significantly so they are visible.
+            // Dynamic Vector Scale based on mode
+            const vectorVisualScale = state.mode === 'river' ? 15 : 0.5;
+
+            const radObj = toMathAngle(state.thetaObj);
+            const radMed = toMathAngle(state.thetaMed);
+            
+            const vOx = state.vObj * Math.cos(radObj);
+            const vOy = state.vObj * Math.sin(radObj);
+            const vMx = state.vMed * Math.cos(radMed);
+            const vMy = state.vMed * Math.sin(radMed);
+            const vRx = vOx + vMx;
+            const vRy = vOy + vMy;
+
+            const px = state.pos.x;
+            const py = state.pos.y;
+
+            if (ui.checkVectors.checked) {
+                drawArrow(ctx, px, py, vOx * vectorVisualScale, vOy * vectorVisualScale, '#ef4444', 1);
+                const headOx = px + vOx * vectorVisualScale;
+                const headOy = py - vOy * vectorVisualScale; 
+                drawArrow(ctx, headOx, headOy, vMx * vectorVisualScale, vMy * vectorVisualScale, '#3b82f6', 1);
+                drawArrow(ctx, px, py, vRx * vectorVisualScale, vRy * vectorVisualScale, '#9333ea', 1);
+            }
+        }
+
+        function drawTrail() {
+            if (!ui.checkTrails.checked || state.trail.length < 2) return;
+            ctx.beginPath();
+            ctx.moveTo(state.trail[0].x, state.trail[0].y);
+            for (let i = 1; i < state.trail.length; i++) {
+                ctx.lineTo(state.trail[i].x, state.trail[i].y);
+            }
+            ctx.strokeStyle = 'rgba(147, 51, 234, 0.4)'; ctx.lineWidth = 4; ctx.setLineDash([10, 10]); ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(147, 51, 234, 0.2)';
+            for (let i = 0; i < state.trail.length; i += 10) {
+                ctx.beginPath(); ctx.arc(state.trail[i].x, state.trail[i].y, 3, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        function draw() {
+            drawBackground();
+            drawTrail();
+            drawVectors();
+            drawObject();
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
