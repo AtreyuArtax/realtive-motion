@@ -230,6 +230,9 @@
                                 <input type="range" id="input-theta-obj" min="-90" max="90" step="1" value="0" class="flex-1" title="Object Heading (Bearing)">
                                 <input type="number" id="text-theta-obj" min="-90" max="90" step="0.1" value="0" title="Object heading bearing value" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
+                            <div class="text-[10px] text-slate-500 font-medium mt-1 mb-1">
+                                <span id="disp-theta-obj-quad">N 0° E</span>
+                            </div>
                             <p id="hint-theta-obj" class="text-[10px] text-slate-400 mt-1">Center is North. Slide Left for West, Right for East.</p>
                         </div>
                     </div>
@@ -259,6 +262,9 @@
                             <div class="flex gap-2 mb-2">
                                 <input type="range" id="input-theta-med" min="0" max="360" step="5" value="90" class="flex-1" title="Wind Direction">
                                 <input type="number" id="text-theta-med" min="0" max="360" step="0.1" value="90" title="Wind direction bearing value" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div class="text-[10px] text-slate-500 font-medium mt-1 mb-1">
+                                <span id="disp-theta-med-quad">N 90° E</span>
                             </div>
                         </div>
                     </div>
@@ -384,6 +390,9 @@
             textThetaObj: document.getElementById('text-theta-obj'),
             textVMed: document.getElementById('text-v-med'),
             textThetaMed: document.getElementById('text-theta-med'),
+            
+            dispThetaObjQuad: document.getElementById('disp-theta-obj-quad'),
+            dispThetaMedQuad: document.getElementById('disp-theta-med-quad'),
             
             hintThetaObj: document.getElementById('hint-theta-obj'),
             selectNotation: document.getElementById('select-notation'),
@@ -873,6 +882,56 @@
             
             ui.inputThetaObj.value = state.thetaObj;
             ui.textThetaObj.value = state.thetaObj.toFixed(1);
+            
+            // Update quadrant notation for heading
+            let displayBearing = state.thetaObj;
+            // In river mode, convert negative values to 0-360 range for display purposes
+            if (state.mode === 'river' && displayBearing < 0) {
+                displayBearing = 360 + displayBearing;
+            }
+            
+            // Format as quadrant notation
+            let quadrantText = displayBearing.toFixed(1) + '°';
+            if (displayBearing >= -0.1 && displayBearing <= 0.1 || displayBearing >= 359.9) {
+                quadrantText = 'Due North';
+            } else if (displayBearing >= 89.9 && displayBearing <= 90.1) {
+                quadrantText = 'Due East';
+            } else if (displayBearing >= 179.9 && displayBearing <= 180.1) {
+                quadrantText = 'Due South';
+            } else if (displayBearing >= 269.9 && displayBearing <= 270.1) {
+                quadrantText = 'Due West';
+            } else if (displayBearing < 90) {
+                quadrantText = `N ${displayBearing.toFixed(1)}° E`;
+            } else if (displayBearing < 180) {
+                quadrantText = `S ${(180 - displayBearing).toFixed(1)}° E`;
+            } else if (displayBearing < 270) {
+                quadrantText = `S ${(displayBearing - 180).toFixed(1)}° W`;
+            } else {
+                quadrantText = `N ${(360 - displayBearing).toFixed(1)}° W`;
+            }
+            ui.dispThetaObjQuad.innerText = quadrantText;
+            
+            // Update quadrant notation for wind direction
+            let windBearing = state.thetaMed;
+            let windQuadrantText = windBearing.toFixed(1) + '°';
+            if (windBearing >= -0.1 && windBearing <= 0.1 || windBearing >= 359.9) {
+                windQuadrantText = 'Due North';
+            } else if (windBearing >= 89.9 && windBearing <= 90.1) {
+                windQuadrantText = 'Due East';
+            } else if (windBearing >= 179.9 && windBearing <= 180.1) {
+                windQuadrantText = 'Due South';
+            } else if (windBearing >= 269.9 && windBearing <= 270.1) {
+                windQuadrantText = 'Due West';
+            } else if (windBearing < 90) {
+                windQuadrantText = `N ${windBearing.toFixed(1)}° E`;
+            } else if (windBearing < 180) {
+                windQuadrantText = `S ${(180 - windBearing).toFixed(1)}° E`;
+            } else if (windBearing < 270) {
+                windQuadrantText = `S ${(windBearing - 180).toFixed(1)}° W`;
+            } else {
+                windQuadrantText = `N ${(360 - windBearing).toFixed(1)}° W`;
+            }
+            ui.dispThetaMedQuad.innerText = windQuadrantText;
             
             ui.inputVMed.value = state.vMed;
             ui.textVMed.value = state.vMed.toFixed(3);
