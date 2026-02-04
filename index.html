@@ -214,18 +214,22 @@
                         <div>
                             <div class="flex justify-between mb-1">
                                 <label class="text-xs font-medium text-slate-500">Speed (|<span class="font-bold text-red-500">v<sub>o</sub></span>|)</label>
-                                <span class="text-xs font-mono font-bold text-slate-700"><span id="disp-v-obj">5</span> m/s</span>
                             </div>
-                            <input type="range" id="input-v-obj" min="0" max="15" step="0.5" value="5" class="w-full" aria-label="Object Speed">
+                            <div class="flex gap-2 mb-2">
+                                <input type="range" id="input-v-obj" min="0" max="15" step="0.5" value="5" class="flex-1" aria-label="Object Speed">
+                                <input type="number" id="text-v-obj" min="0" max="15" step="0.001" value="5" title="Object speed value" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
                         </div>
 
                         <!-- Angle Object -->
                         <div>
                             <div class="flex justify-between mb-1">
                                 <label class="text-xs font-medium text-slate-500">Heading (Bearing)</label>
-                                <span class="text-xs font-mono font-bold text-slate-700"><span id="disp-theta-obj">0</span>°</span>
                             </div>
-                            <input type="range" id="input-theta-obj" min="-90" max="90" step="1" value="0" class="w-full" title="Object Heading (Bearing)">
+                            <div class="flex gap-2 mb-2">
+                                <input type="range" id="input-theta-obj" min="-90" max="90" step="1" value="0" class="flex-1" title="Object Heading (Bearing)">
+                                <input type="number" id="text-theta-obj" min="-90" max="90" step="0.1" value="0" title="Object heading bearing value" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
                             <p id="hint-theta-obj" class="text-[10px] text-slate-400 mt-1">Center is North. Slide Left for West, Right for East.</p>
                         </div>
                     </div>
@@ -240,20 +244,22 @@
                         <div>
                             <div class="flex justify-between mb-1">
                                 <label class="text-xs font-medium text-slate-500">Velocity (|<span class="font-bold text-blue-500">v<sub>m</sub></span>|)</label>
-                                <span class="text-xs font-mono font-bold text-slate-700"><span id="disp-v-med">3</span> m/s</span>
                             </div>
-                            <label for="input-v-med" class="sr-only">Medium Velocity</label>
-                            <input type="range" id="input-v-med" min="0" max="10" step="0.5" value="3" class="w-full" title="Medium Velocity">
+                            <div class="flex gap-2 mb-2">
+                                <input type="range" id="input-v-med" min="0" max="10" step="0.5" value="3" class="flex-1" title="Medium Velocity">
+                                <input type="number" id="text-v-med" min="0" max="10" step="0.001" value="3" title="Medium velocity value" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
                         </div>
 
                         <!-- Angle Medium (Only for Plane) -->
                         <div id="container-theta-med" class="opacity-50 pointer-events-none transition-opacity">
                             <div class="flex justify-between mb-1">
                                 <label class="text-xs font-medium text-slate-500">Wind Direction</label>
-                                <span class="text-xs font-mono font-bold text-slate-700"><span id="disp-theta-med">90</span>°</span>
                             </div>
-                            <label for="input-theta-med" class="sr-only">Wind Direction</label>
-                            <input type="range" id="input-theta-med" min="0" max="360" step="5" value="90" class="w-full" title="Wind Direction">
+                            <div class="flex gap-2 mb-2">
+                                <input type="range" id="input-theta-med" min="0" max="360" step="5" value="90" class="flex-1" title="Wind Direction">
+                                <input type="number" id="text-theta-med" min="0" max="360" step="0.1" value="90" title="Wind direction bearing value" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
                         </div>
                     </div>
 
@@ -326,6 +332,13 @@
                 radius: 30,
                 dragging: false
             },
+            
+            // Plane Starting Position (for dragging before simulation starts)
+            planeStart: {
+                x: 0,
+                y: 0,
+                dragging: false
+            },
 
             // Cabin (River Mode)
             cabin: {
@@ -362,15 +375,15 @@
 
         // UI Elements
         const ui = {
-            dispVObj: document.getElementById('disp-v-obj'),
-            dispThetaObj: document.getElementById('disp-theta-obj'),
-            dispVMed: document.getElementById('disp-v-med'),
-            dispThetaMed: document.getElementById('disp-theta-med'),
-            
             inputVObj: document.getElementById('input-v-obj'),
             inputThetaObj: document.getElementById('input-theta-obj'),
             inputVMed: document.getElementById('input-v-med'),
             inputThetaMed: document.getElementById('input-theta-med'),
+            
+            textVObj: document.getElementById('text-v-obj'),
+            textThetaObj: document.getElementById('text-theta-obj'),
+            textVMed: document.getElementById('text-v-med'),
+            textThetaMed: document.getElementById('text-theta-med'),
             
             hintThetaObj: document.getElementById('hint-theta-obj'),
             selectNotation: document.getElementById('select-notation'),
@@ -463,13 +476,24 @@
             const pos = getPointerPos(e);
             
             if (state.mode === 'plane') {
-                // Check distance to destination center
-                const dist = Math.hypot(pos.x - state.destination.x, pos.y - state.destination.y);
-                
-                if (dist < state.destination.radius + 10) { 
-                    state.destination.dragging = true;
-                    canvas.classList.add('grabbing-cursor');
-                    canvas.classList.remove('grab-cursor');
+                // Only allow dragging if simulation hasn't started
+                if (!state.running) {
+                    // Check distance to plane starting position
+                    const distToPlane = Math.hypot(pos.x - state.planeStart.x, pos.y - state.planeStart.y);
+                    if (distToPlane < 25) {
+                        state.planeStart.dragging = true;
+                        canvas.classList.add('grabbing-cursor');
+                        canvas.classList.remove('grab-cursor');
+                        return;
+                    }
+                    
+                    // Check distance to destination center
+                    const distToDest = Math.hypot(pos.x - state.destination.x, pos.y - state.destination.y);
+                    if (distToDest < state.destination.radius + 10) { 
+                        state.destination.dragging = true;
+                        canvas.classList.add('grabbing-cursor');
+                        canvas.classList.remove('grab-cursor');
+                    }
                 }
             } else if (state.mode === 'river') {
                 // Check cabin bounds
@@ -487,14 +511,26 @@
             const pos = getPointerPos(e);
             
             if (state.mode === 'plane') {
-                if (state.destination.dragging) {
+                if (state.planeStart.dragging) {
+                    state.planeStart.x = Math.max(0, Math.min(state.width, pos.x));
+                    state.planeStart.y = Math.max(0, Math.min(state.height, pos.y));
+                    // Update initial position
+                    state.pos.x = state.planeStart.x;
+                    state.pos.y = state.planeStart.y;
+                    draw();
+                } else if (state.destination.dragging) {
                     state.destination.x = pos.x;
                     state.destination.y = pos.y;
                     if (!state.running) draw();
                 } else {
-                    const dist = Math.hypot(pos.x - state.destination.x, pos.y - state.destination.y);
-                    if (dist < state.destination.radius + 10) canvas.classList.add('grab-cursor');
-                    else canvas.classList.remove('grab-cursor');
+                    const distToPlane = Math.hypot(pos.x - state.planeStart.x, pos.y - state.planeStart.y);
+                    if (distToPlane < 25) {
+                        canvas.classList.add('grab-cursor');
+                    } else {
+                        const distToDest = Math.hypot(pos.x - state.destination.x, pos.y - state.destination.y);
+                        if (distToDest < state.destination.radius + 10) canvas.classList.add('grab-cursor');
+                        else canvas.classList.remove('grab-cursor');
+                    }
                 }
             } else if (state.mode === 'river') {
                 if (state.cabin.dragging) {
@@ -516,6 +552,7 @@
         function handleInputEnd(e) {
             state.destination.dragging = false;
             state.cabin.dragging = false;
+            state.planeStart.dragging = false;
             canvas.classList.remove('grabbing-cursor');
         }
 
@@ -523,7 +560,16 @@
             if (state.mode === 'river') {
                 state.cabin.x = state.width / 2;
             } else {
-                state.destination.x = state.width * 0.8;
+                // Reset plane to center
+                state.planeStart.x = state.width / 2;
+                state.planeStart.y = state.height * 0.7;
+                state.pos.x = state.planeStart.x;
+                state.pos.y = state.planeStart.y;
+                state.trail = []; // Clear the trail too
+                state.trail.push({...state.pos});
+                
+                // Reset destination to due north of plane
+                state.destination.x = state.planeStart.x;
                 state.destination.y = state.height * 0.2;
             }
             if(!state.running) draw();
@@ -561,6 +607,12 @@
             // Init cabin center
             if (state.cabin.x === 0) state.cabin.x = state.width / 2;
             else state.cabin.x = Math.min(state.width, Math.max(0, state.cabin.x)); // Keep on screen resize
+            
+            // Init plane position
+            if (state.planeStart.x === 0) {
+                state.planeStart.x = state.width / 2;
+                state.planeStart.y = state.height * 0.7;
+            }
 
             if (!state.running && state.time === 0) {
                 resetPos();
@@ -579,9 +631,9 @@
                 state.pos.x = state.width / 2;
                 state.pos.y = state.height - 50; 
             } else {
-                // Plane starts in the center
-                state.pos.x = state.width / 2;
-                state.pos.y = state.height / 2;
+                // Plane starts at the planeStart position
+                state.pos.x = state.planeStart.x;
+                state.pos.y = state.planeStart.y;
             }
             
             state.trail.push({...state.pos});
@@ -594,20 +646,110 @@
             draw();
             updateAnalysis();
             
-            // Listeners
-            ui.inputVObj.addEventListener('input', (e) => { state.vObj = parseFloat(e.target.value); updateUI(); if(!state.running) draw(); });
+            // Helper function to sync slider and text input
+            const syncSliderToText = (slider, textInput) => {
+                textInput.value = slider.value;
+            };
+            
+            const syncTextToSlider = (slider, textInput) => {
+                const val = parseFloat(textInput.value);
+                if (!isNaN(val)) {
+                    // Clamp to slider range
+                    const min = parseFloat(slider.min);
+                    const max = parseFloat(slider.max);
+                    slider.value = Math.max(min, Math.min(max, val));
+                }
+            };
+            
+            // Listeners - Speed Object
+            ui.inputVObj.addEventListener('input', (e) => { 
+                state.vObj = parseFloat(e.target.value); 
+                ui.textVObj.value = state.vObj.toFixed(3);
+                updateUI(); 
+                if(!state.running) draw(); 
+            });
+            ui.textVObj.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) {
+                    const min = parseFloat(ui.inputVObj.min);
+                    const max = parseFloat(ui.inputVObj.max);
+                    state.vObj = Math.max(min, Math.min(max, val));
+                    ui.inputVObj.value = state.vObj;
+                    updateUI(); 
+                    if(!state.running) draw();
+                }
+            });
+            
+            // Listeners - Angle Object
             ui.inputThetaObj.addEventListener('input', (e) => { 
                 const val = parseFloat(e.target.value);
                 if (state.mode === 'river') {
-                    if (val < 0) state.thetaObj = 360 + val;
-                    else state.thetaObj = val;
-                } else {
+                    // In river mode, slider range is -90 to 90
+                    // We store it as-is (negative values are valid)
                     state.thetaObj = val;
+                    // Display in text as the direct slider value
+                    ui.textThetaObj.value = val.toFixed(1);
+                } else {
+                    // In plane mode, slider range is 0 to 360
+                    state.thetaObj = val;
+                    ui.textThetaObj.value = val.toFixed(1);
                 }
-                updateUI(); if(!state.running) draw(); 
+                updateUI(); 
+                if(!state.running) draw(); 
             });
-            ui.inputVMed.addEventListener('input', (e) => { state.vMed = parseFloat(e.target.value); updateUI(); if(!state.running) draw(); });
-            ui.inputThetaMed.addEventListener('input', (e) => { state.thetaMed = parseFloat(e.target.value); updateUI(); if(!state.running) draw(); });
+            ui.textThetaObj.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) {
+                    const min = parseFloat(ui.inputThetaObj.min);
+                    const max = parseFloat(ui.inputThetaObj.max);
+                    // Clamp the value to the slider's range
+                    let clampedVal = Math.max(min, Math.min(max, val));
+                    state.thetaObj = clampedVal;
+                    ui.inputThetaObj.value = clampedVal;
+                    ui.textThetaObj.value = clampedVal.toFixed(1);
+                    updateUI(); 
+                    if(!state.running) draw();
+                }
+            });
+            
+            // Listeners - Speed Medium
+            ui.inputVMed.addEventListener('input', (e) => { 
+                state.vMed = parseFloat(e.target.value); 
+                ui.textVMed.value = state.vMed.toFixed(3);
+                updateUI(); 
+                if(!state.running) draw(); 
+            });
+            ui.textVMed.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) {
+                    const min = parseFloat(ui.inputVMed.min);
+                    const max = parseFloat(ui.inputVMed.max);
+                    state.vMed = Math.max(min, Math.min(max, val));
+                    ui.inputVMed.value = state.vMed;
+                    updateUI(); 
+                    if(!state.running) draw();
+                }
+            });
+            
+            // Listeners - Angle Medium
+            ui.inputThetaMed.addEventListener('input', (e) => { 
+                state.thetaMed = parseFloat(e.target.value); 
+                ui.textThetaMed.value = state.thetaMed.toFixed(1);
+                updateUI(); 
+                if(!state.running) draw(); 
+            });
+            ui.textThetaMed.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) {
+                    const min = parseFloat(ui.inputThetaMed.min);
+                    const max = parseFloat(ui.inputThetaMed.max);
+                    state.thetaMed = Math.max(min, Math.min(max, val));
+                    ui.inputThetaMed.value = state.thetaMed;
+                    updateUI(); 
+                    if(!state.running) draw();
+                }
+            });
+            
             ui.selectNotation.addEventListener('change', () => { updateUI(); draw(); });
             ui.checkTrails.addEventListener('change', draw);
             ui.checkVectors.addEventListener('change', draw);
@@ -657,15 +799,19 @@
                 state.scale = 40; // Zoom In for River
                 ui.containerThetaMed.classList.add('opacity-50', 'pointer-events-none');
                 
-                // Set Sliders for River
+                // Set Sliders and Text Inputs for River
                 ui.inputVObj.max = 15; ui.inputVObj.step = 0.5;
+                ui.textVObj.max = 15; ui.textVObj.step = 0.001;
                 if(state.vObj > 15) state.vObj = 5;
                 
                 ui.inputVMed.max = 10; ui.inputVMed.step = 0.5;
+                ui.textVMed.max = 10; ui.textVMed.step = 0.001;
                 if(state.vMed > 10) state.vMed = 3;
 
                 ui.inputThetaObj.min = -90;
                 ui.inputThetaObj.max = 90;
+                ui.textThetaObj.min = -90;
+                ui.textThetaObj.max = 90;
                 ui.inputThetaObj.value = 0;
                 ui.hintThetaObj.innerText = "Center is North. Slide Left for West, Right for East.";
                 
@@ -681,28 +827,38 @@
                 ui.lblObj.innerText = "Plane";
                 ui.lblMed.innerText = "Wind";
                 ui.dragHint.classList.remove('hidden');
-                ui.dragHint.innerText = "Drag the target circle to set destination";
+                ui.dragHint.innerText = "Drag the plane or destination before starting";
                 
                 ui.containerThetaMed.classList.remove('opacity-50', 'pointer-events-none');
                 
                 state.scale = 0.5; // Zoom Out significantly for Plane (allows 200m/s speeds)
                 
-                // Set Sliders for Plane (Higher Speeds)
+                // Set Sliders and Text Inputs for Plane (Higher Speeds)
                 ui.inputVObj.max = 500; ui.inputVObj.step = 10;
+                ui.textVObj.max = 500; ui.textVObj.step = 0.1;
                 if(state.vObj < 20) state.vObj = 250; // Set a reasonable default plane speed
                 
                 ui.inputVMed.max = 100; ui.inputVMed.step = 5;
+                ui.textVMed.max = 100; ui.textVMed.step = 0.1;
                 if(state.vMed < 5) state.vMed = 40;
 
                 ui.inputThetaObj.min = 0;
                 ui.inputThetaObj.max = 360;
+                ui.textThetaObj.min = 0;
+                ui.textThetaObj.max = 360;
                 ui.inputThetaObj.value = 0;
                 ui.hintThetaObj.innerText = "0° is North, 90° is East. Fly any direction.";
                 
                 state.thetaObj = 0;
                 
-                // Initialize destination if needed
-                state.destination.x = state.width * 0.8;
+                // Initialize plane and destination positions
+                state.planeStart.x = state.width / 2;
+                state.planeStart.y = state.height * 0.7;
+                state.pos.x = state.planeStart.x;
+                state.pos.y = state.planeStart.y;
+                
+                // Destination due north of plane
+                state.destination.x = state.planeStart.x;
                 state.destination.y = state.height * 0.2;
             }
             
@@ -711,15 +867,18 @@
         }
 
         function updateUI() {
-            ui.dispVObj.innerText = state.vObj.toFixed(1);
-            ui.dispThetaObj.innerText = formatAngle(state.thetaObj);
-            ui.dispVMed.innerText = state.vMed.toFixed(1);
-            ui.dispThetaMed.innerText = formatAngle(state.thetaMed);
+            // Update slider and text input values to match state
+            ui.inputVObj.value = state.vObj;
+            ui.textVObj.value = state.vObj.toFixed(3);
+            
+            ui.inputThetaObj.value = state.thetaObj;
+            ui.textThetaObj.value = state.thetaObj.toFixed(1);
+            
+            ui.inputVMed.value = state.vMed;
+            ui.textVMed.value = state.vMed.toFixed(3);
             
             ui.inputThetaMed.value = state.thetaMed;
-            // Ensure inputs match state (helpful when switching modes updates values)
-            ui.inputVObj.value = state.vObj;
-            ui.inputVMed.value = state.vMed;
+            ui.textThetaMed.value = state.thetaMed.toFixed(1);
             
             const radObj = toMathAngle(state.thetaObj);
             const radMed = toMathAngle(state.thetaMed);
@@ -1157,6 +1316,41 @@
                 // Door
                 ctx.fillStyle = '#451a03';
                 ctx.fillRect(cx - 5, cy - 12, 10, 12);
+                
+                // Draw Dock on bottom bank (fixed position at center)
+                const dockX = state.width / 2; // Fixed at center
+                const dockY = state.height - state.topBankY; // Bottom bank position
+                
+                // Dock platform (wooden planks)
+                ctx.fillStyle = '#8b6914'; // Dark wood
+                ctx.fillRect(dockX - 25, dockY - 8, 50, 8);
+                
+                // Dock planks (visual detail)
+                ctx.strokeStyle = '#6b5310';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(dockX - 25 + i * 12.5, dockY - 8);
+                    ctx.lineTo(dockX - 25 + i * 12.5, dockY);
+                    ctx.stroke();
+                }
+                
+                // Dock posts
+                ctx.fillStyle = '#5d4a1a';
+                ctx.fillRect(dockX - 28, dockY, 4, 15);
+                ctx.fillRect(dockX + 24, dockY, 4, 15);
+                
+                // Dock rope/mooring
+                ctx.strokeStyle = '#a0826d';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(dockX - 15, dockY - 8);
+                ctx.quadraticCurveTo(dockX - 20, dockY - 15, dockX - 25, dockY - 20);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(dockX + 15, dockY - 8);
+                ctx.quadraticCurveTo(dockX + 20, dockY - 15, dockX + 25, dockY - 20);
+                ctx.stroke();
 
 
             } else {
@@ -1170,6 +1364,47 @@
                     ctx.arc(p.x, p.y, p.length/4, 0, Math.PI*2);
                     ctx.fill();
                 });
+                
+                // --- Plane Starting Position (if simulation hasn't started) ---
+                if (!state.running) {
+                    ctx.save();
+                    ctx.translate(state.planeStart.x, state.planeStart.y);
+                    
+                    // Dashed circle around starting plane
+                    ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)'; // Blue
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 35, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    
+                    // Draw small plane icon at start position
+                    ctx.fillStyle = 'rgba(203, 213, 225, 0.6)'; // Semi-transparent grey
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 15, 3, 0, 0, Math.PI*2); // Fuselage
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'rgba(148, 163, 184, 0.5)'; // Darker semi-transparent
+                    ctx.beginPath();
+                    ctx.moveTo(2, 0);
+                    ctx.lineTo(-5, 12);
+                    ctx.lineTo(-8, 12);
+                    ctx.lineTo(-2, 0);
+                    ctx.lineTo(-8, -12);
+                    ctx.lineTo(-5, -12);
+                    ctx.lineTo(2, 0);
+                    ctx.fill();
+                    
+                    ctx.restore();
+                    
+                    // Label
+                    ctx.fillStyle = '#3b82f6';
+                    ctx.font = "bold 11px Inter";
+                    ctx.textAlign = "center";
+                    ctx.fillText("START", state.planeStart.x, state.planeStart.y + 50);
+                    ctx.textAlign = "start"; // Reset
+                }
                 
                 // --- Destination Circle ---
                 const { x, y, radius, dragging } = state.destination;
@@ -1197,18 +1432,6 @@
                 ctx.textAlign = "center";
                 ctx.fillText("DESTINATION", x, y + radius + 15);
                 ctx.textAlign = "start"; // Reset
-                
-                // Start Marker (Airfield)
-                const cx = state.width / 2;
-                const cy = state.height / 2;
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI*2); ctx.fill();
-                ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
-                ctx.beginPath(); ctx.moveTo(cx - 20, cy); ctx.lineTo(cx + 20, cy);
-                ctx.moveTo(cx, cy - 20); ctx.lineTo(cx, cy + 20);
-                ctx.stroke(); ctx.setLineDash([]);
-                ctx.fillStyle = '#64748b'; ctx.font = "bold 12px Inter";
-                ctx.fillText("AIRFIELD", cx + 15, cy + 15);
             }
             ctx.restore();
         }
