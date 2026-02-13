@@ -113,7 +113,10 @@
                     class="stat-card px-2 sm:px-4 py-1 sm:py-2 rounded-lg border border-slate-200 shadow-sm min-w-[160px] sm:min-w-[180px] text-xs sm:text-sm">
                     <div class="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wider font-semibold">Drift /
                         Angle</div>
-                    <div class="text-lg sm:text-xl font-bold text-slate-800"><span id="val-angle">0.0</span></div>
+                    <div class="text-lg sm:text-xl font-bold text-slate-800"><span id="val-angle-bearing">0.0°</span>
+                    </div>
+                    <div class="text-[10px] sm:text-xs text-slate-500 font-medium" id="val-angle-quadrant">Due North
+                    </div>
                 </div>
                 <div
                     class="stat-card px-2 sm:px-4 py-1 sm:py-2 rounded-lg border border-slate-200 shadow-sm min-w-[160px] sm:min-w-[180px] text-xs sm:text-sm">
@@ -145,26 +148,9 @@
                     </button>
                 </div>
 
-                <!-- Resultant Summary -->
-                <div class="bg-purple-50 border border-purple-200 rounded-lg px-3 py-1.5 mb-2">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <div class="text-[10px] text-purple-500 font-semibold uppercase tracking-wider">Resultant
-                            </div>
-                            <div class="text-base font-bold text-purple-700"><span id="val-res-mag">0.0</span> <span
-                                    class="text-xs font-medium text-purple-400">m/s</span></div>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-[10px] text-purple-500 font-semibold uppercase tracking-wider">Bearing
-                            </div>
-                            <div class="text-sm font-bold text-purple-700" id="val-res-bearing">0.0°</div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Vector Diagram Canvas -->
                 <div class="flex justify-center mb-2 bg-slate-50 rounded-lg border border-slate-100 overflow-hidden">
-                    <canvas id="analysis-canvas" width="260" height="150"></canvas>
+                    <canvas id="analysis-canvas" width="260" height="190"></canvas>
                 </div>
 
                 <!-- Component Table -->
@@ -302,8 +288,13 @@
                                     title="Object heading bearing value"
                                     class="w-16 px-2 py-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
-                            <div class="text-[10px] text-slate-500 font-medium mt-1 mb-1">
-                                <span id="disp-theta-obj-quad">N 0° E</span>
+                            <div class="flex items-center gap-2 mt-1 mb-1">
+                                <canvas id="compass-obj" width="36" height="36" class="shrink-0"></canvas>
+                                <div>
+                                    <div class="text-xs font-bold text-slate-700" id="disp-theta-obj-bearing">0.0°</div>
+                                    <div class="text-[10px] text-slate-500 font-medium" id="disp-theta-obj-quad">Due
+                                        North</div>
+                                </div>
                             </div>
                             <p id="hint-theta-obj" class="text-[10px] text-slate-400 mt-1">Center is North. Slide Left
                                 for West, Right for East.</p>
@@ -344,24 +335,20 @@
                                     title="Wind direction bearing value"
                                     class="w-16 px-2 py-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
-                            <div class="text-[10px] text-slate-500 font-medium mt-1 mb-1">
-                                <span id="disp-theta-med-quad">N 90° E</span>
+                            <div class="flex items-center gap-2 mt-1 mb-1">
+                                <canvas id="compass-med" width="36" height="36" class="shrink-0"></canvas>
+                                <div>
+                                    <div class="text-xs font-bold text-slate-700" id="disp-theta-med-bearing">90.0°
+                                    </div>
+                                    <div class="text-[10px] text-slate-500 font-medium" id="disp-theta-med-quad">Due
+                                        East</div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Display Options -->
                     <div class="pt-4 border-t border-slate-100 space-y-3">
-                        <div class="flex flex-col gap-1">
-                            <label class="text-xs font-medium text-slate-500">Angle Notation</label>
-                            <label for="select-notation" class="sr-only">Angle Notation</label>
-                            <select id="select-notation" title="Angle Notation"
-                                class="text-sm p-1.5 border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="bearing">Bearing (0° - 360°)</option>
-                                <option value="quadrant" selected>Quadrant (N 32° E)</option>
-                            </select>
-                        </div>
-
                         <div class="flex flex-col gap-2">
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" id="check-trails"
@@ -477,10 +464,14 @@
             textThetaMed: document.getElementById('text-theta-med'),
 
             dispThetaObjQuad: document.getElementById('disp-theta-obj-quad'),
+            dispThetaObjBearing: document.getElementById('disp-theta-obj-bearing'),
             dispThetaMedQuad: document.getElementById('disp-theta-med-quad'),
+            dispThetaMedBearing: document.getElementById('disp-theta-med-bearing'),
+
+            compassObj: document.getElementById('compass-obj'),
+            compassMed: document.getElementById('compass-med'),
 
             hintThetaObj: document.getElementById('hint-theta-obj'),
-            selectNotation: document.getElementById('select-notation'),
             containerThetaMed: document.getElementById('container-theta-med'),
             dragHint: document.getElementById('drag-hint'),
 
@@ -494,11 +485,10 @@
             valMy: document.getElementById('val-my'),
             valRx: document.getElementById('val-rx'),
             valRy: document.getElementById('val-ry'),
-            valResMag: document.getElementById('val-res-mag'),
-            valResBearing: document.getElementById('val-res-bearing'),
 
             valVNet: document.getElementById('val-vnet'),
-            valAngle: document.getElementById('val-angle'),
+            valAngleBearing: document.getElementById('val-angle-bearing'),
+            valAngleQuadrant: document.getElementById('val-angle-quadrant'),
             valTime: document.getElementById('val-time'),
 
             btnPlay: document.getElementById('btn-start'),
@@ -546,11 +536,62 @@
         }
 
         function formatAngle(bearing) {
-            if (ui.selectNotation.value === 'quadrant') {
-                return `[${bearingToQuadrant(bearing)}]`;
-            } else {
-                return `${bearing.toFixed(1)}°`;
-            }
+            return `${bearing.toFixed(1)}°`;
+        }
+
+        // Draw a mini compass rose on a small canvas
+        function drawCompass(canvasEl, bearingDeg, color) {
+            const cctx = canvasEl.getContext('2d');
+            const w = canvasEl.width;
+            const h = canvasEl.height;
+            const cx = w / 2;
+            const cy = h / 2;
+            const r = Math.min(cx, cy) - 2;
+
+            cctx.clearRect(0, 0, w, h);
+
+            // Ring
+            cctx.beginPath();
+            cctx.arc(cx, cy, r, 0, Math.PI * 2);
+            cctx.fillStyle = '#f8fafc';
+            cctx.fill();
+            cctx.strokeStyle = '#e2e8f0';
+            cctx.lineWidth = 1;
+            cctx.stroke();
+
+            // Cardinal tick labels
+            cctx.font = 'bold 7px Inter, sans-serif';
+            cctx.fillStyle = '#94a3b8';
+            cctx.textAlign = 'center';
+            cctx.textBaseline = 'middle';
+            cctx.fillText('N', cx, cy - r + 5);
+            cctx.fillText('S', cx, cy + r - 5);
+            cctx.fillText('E', cx + r - 5, cy);
+            cctx.fillText('W', cx - r + 5, cy);
+
+            // Direction arrow (bearing: 0=N=up, 90=E=right, clockwise)
+            const rad = (bearingDeg - 90) * Math.PI / 180;
+            const arrowLen = r - 6;
+            const tipX = cx + Math.cos(rad) * arrowLen;
+            const tipY = cy + Math.sin(rad) * arrowLen;
+
+            // Arrow shaft
+            cctx.beginPath();
+            cctx.moveTo(cx, cy);
+            cctx.lineTo(tipX, tipY);
+            cctx.strokeStyle = color;
+            cctx.lineWidth = 2;
+            cctx.stroke();
+
+            // Arrowhead
+            const headLen = 5;
+            const angle = Math.atan2(tipY - cy, tipX - cx);
+            cctx.beginPath();
+            cctx.moveTo(tipX, tipY);
+            cctx.lineTo(tipX - headLen * Math.cos(angle - Math.PI / 5), tipY - headLen * Math.sin(angle - Math.PI / 5));
+            cctx.lineTo(tipX - headLen * Math.cos(angle + Math.PI / 5), tipY - headLen * Math.sin(angle + Math.PI / 5));
+            cctx.fillStyle = color;
+            cctx.fill();
         }
 
         // --- Interaction Logic (Dragging) ---
@@ -844,7 +885,6 @@
                 }
             });
 
-            ui.selectNotation.addEventListener('change', () => { updateUI(); draw(); });
             ui.checkTrails.addEventListener('change', draw);
             ui.checkVectors.addEventListener('change', draw);
 
@@ -971,13 +1011,19 @@
             ui.inputThetaObj.value = state.thetaObj;
             if (focused !== ui.textThetaObj) ui.textThetaObj.value = state.thetaObj.toFixed(1);
 
-            // Update quadrant notation displays
+            // Update dual notation displays for object heading
             let displayBearing = state.thetaObj;
             if (state.mode === 'river' && displayBearing < 0) {
                 displayBearing = 360 + displayBearing;
             }
+            ui.dispThetaObjBearing.innerText = displayBearing.toFixed(1) + '°';
             ui.dispThetaObjQuad.innerText = bearingToQuadrant(displayBearing);
+            drawCompass(ui.compassObj, displayBearing, '#ef4444');
+
+            // Update dual notation displays for medium heading
+            ui.dispThetaMedBearing.innerText = state.thetaMed.toFixed(1) + '°';
             ui.dispThetaMedQuad.innerText = bearingToQuadrant(state.thetaMed);
+            drawCompass(ui.compassMed, state.thetaMed, '#3b82f6');
 
             ui.inputVMed.value = state.vMed;
             if (focused !== ui.textVMed) ui.textVMed.value = state.vMed.toFixed(3);
@@ -999,7 +1045,8 @@
             const bearingNet = toBearing(angleNetRad);
 
             ui.valVNet.innerText = vNet.toFixed(2);
-            ui.valAngle.innerText = formatAngle(bearingNet);
+            ui.valAngleBearing.innerText = bearingNet.toFixed(1) + '°';
+            ui.valAngleQuadrant.innerText = bearingToQuadrant(bearingNet);
             ui.valTime.innerText = state.time.toFixed(2);
 
             // Update Analysis Overlay Values
@@ -1021,20 +1068,20 @@
             const vRx = vOx + vMx;
             const vRy = vOy + vMy;
 
-            // Update Text Values
-            ui.valOx.innerText = vOx.toFixed(1);
-            ui.valOy.innerText = vOy.toFixed(1);
-            ui.valMx.innerText = vMx.toFixed(1);
-            ui.valMy.innerText = vMy.toFixed(1);
-            ui.valRx.innerText = vRx.toFixed(1);
-            ui.valRy.innerText = vRy.toFixed(1);
+            // Update Text Values with signed coloring
+            function setSignedValue(el, val) {
+                el.innerText = val.toFixed(1);
+                el.style.color = val > 0.05 ? '#16a34a' : val < -0.05 ? '#dc2626' : '#64748b';
+            }
+            setSignedValue(ui.valOx, vOx);
+            setSignedValue(ui.valOy, vOy);
+            setSignedValue(ui.valMx, vMx);
+            setSignedValue(ui.valMy, vMy);
+            setSignedValue(ui.valRx, vRx);
+            setSignedValue(ui.valRy, vRy);
 
-            // Update Resultant Summary
+            // Compute resultant magnitude for labels and arc
             const vResMag = Math.sqrt(vRx * vRx + vRy * vRy);
-            const resBearingRad = Math.atan2(vRy, vRx);
-            const resBearing = toBearing(resBearingRad);
-            ui.valResMag.innerText = vResMag.toFixed(2);
-            ui.valResBearing.innerText = bearingToQuadrant(resBearing);
 
             // 2. Draw Mini Canvas
             const w = analysisCanvas.width;
@@ -1064,7 +1111,7 @@
             const bboxH = (maxY - minY) || 1;
 
             // Scale to fit canvas with padding for labels
-            const padding = 24;
+            const padding = 28;
             const scaleX = (w - 2 * padding) / bboxW;
             const scaleY = (h - 2 * padding) / bboxH;
             const scale = Math.min(scaleX, scaleY);
@@ -1159,6 +1206,39 @@
             drawVectorLabel(origin, tipObj, `${objLabel} ${state.vObj.toFixed(1)}`, '#dc2626');
             drawVectorLabel(tipObj, tipRes, `${medLabel} ${state.vMed.toFixed(1)}`, '#2563eb');
             drawVectorLabel(origin, tipRes, `V\u1d63 ${vResMag.toFixed(1)}`, '#7c3aed');
+
+            // Draw bearing angle arc from North to resultant
+            if (vResMag > 0.1) {
+                const resBearing = toBearing(Math.atan2(vRy, vRx));
+                const arcR = 18;
+                // Canvas angles: 0=right, negative=clockwise from right
+                // North in canvas = -PI/2 (straight up)
+                const startAngle = -Math.PI / 2; // North
+                // Bearing clockwise from north: canvas angle = bearing - 90° converted to radians
+                const endAngle = (resBearing - 90) * Math.PI / 180;
+
+                actx.beginPath();
+                // Draw clockwise from north to bearing
+                actx.arc(origin.x, origin.y, arcR, startAngle, endAngle, false);
+                actx.strokeStyle = '#a855f7';
+                actx.lineWidth = 1.5;
+                actx.setLineDash([]);
+                actx.stroke();
+
+                // Label the angle
+                const midAngle = (startAngle + endAngle) / 2;
+                // Adjust for wrapping if needed
+                const labelR = arcR + 10;
+                const lx = origin.x + Math.cos(midAngle) * labelR;
+                const ly = origin.y + Math.sin(midAngle) * labelR;
+                actx.save();
+                actx.font = 'bold 9px Inter, sans-serif';
+                actx.textAlign = 'center';
+                actx.textBaseline = 'middle';
+                actx.fillStyle = '#7c3aed';
+                actx.fillText(resBearing.toFixed(0) + '\u00b0', lx, ly);
+                actx.restore();
+            }
         }
 
 
