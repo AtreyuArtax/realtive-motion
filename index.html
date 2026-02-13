@@ -113,9 +113,14 @@
                     class="stat-card px-2 sm:px-4 py-1 sm:py-2 rounded-lg border border-slate-200 shadow-sm min-w-[160px] sm:min-w-[180px] text-xs sm:text-sm">
                     <div class="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wider font-semibold">Drift /
                         Angle</div>
-                    <div class="text-lg sm:text-xl font-bold text-slate-800"><span id="val-angle-bearing">0.0°</span>
-                    </div>
-                    <div class="text-[10px] sm:text-xs text-slate-500 font-medium" id="val-angle-quadrant">Due North
+                    <div class="flex items-center gap-2">
+                        <canvas id="compass-res" width="32" height="32" class="shrink-0"></canvas>
+                        <div>
+                            <div class="text-lg sm:text-xl font-bold text-slate-800"><span
+                                    id="val-angle-bearing">0.0°</span></div>
+                            <div class="text-[10px] sm:text-xs text-slate-500 font-medium" id="val-angle-quadrant">Due
+                                North</div>
+                        </div>
                     </div>
                 </div>
                 <div
@@ -470,6 +475,7 @@
 
             compassObj: document.getElementById('compass-obj'),
             compassMed: document.getElementById('compass-med'),
+            compassRes: document.getElementById('compass-res'),
 
             hintThetaObj: document.getElementById('hint-theta-obj'),
             containerThetaMed: document.getElementById('container-theta-med'),
@@ -1047,6 +1053,7 @@
             ui.valVNet.innerText = vNet.toFixed(2);
             ui.valAngleBearing.innerText = bearingNet.toFixed(1) + '°';
             ui.valAngleQuadrant.innerText = bearingToQuadrant(bearingNet);
+            drawCompass(ui.compassRes, bearingNet, '#9333ea');
             ui.valTime.innerText = state.time.toFixed(2);
 
             // Update Analysis Overlay Values
