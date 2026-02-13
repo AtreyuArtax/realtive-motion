@@ -128,14 +128,13 @@
                 Drag the target to move it
             </div>
 
-            <!-- Vector Analysis Overlay (Replaces on-canvas components) -->
             <div id="analysis-overlay"
-                class="hidden absolute right-2 sm:right-4 top-16 sm:top-20 bg-white/95 backdrop-blur shadow-lg rounded-xl p-2 sm:p-4 border border-slate-200 z-30 w-64 sm:w-72 max-h-[60vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-100">
+                class="hidden absolute right-2 sm:right-4 top-16 sm:top-20 bg-white/95 backdrop-blur shadow-lg rounded-xl p-3 border border-slate-200 z-30 w-72 sm:w-80">
+                <div class="flex justify-between items-center mb-2">
                     <h3 class="text-sm font-bold text-slate-800">Vector Analysis</h3>
                     <button type="button" title="Close analysis overlay" aria-label="Close analysis overlay"
                         onclick="document.getElementById('check-components').click()"
-                        class="text-slate-400 hover:text-slate-600">
+                        class="text-slate-400 hover:text-slate-600 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                             aria-hidden="true">
@@ -146,47 +145,62 @@
                     </button>
                 </div>
 
-                <!-- Mini Canvas for Vector Diagram -->
-                <div class="flex justify-center mb-3 bg-slate-50 rounded border border-slate-100 relative">
-                    <canvas id="analysis-canvas" width="240" height="160"></canvas>
-                    <div class="absolute top-1 left-2 text-[10px] text-slate-400 font-mono">Tip-to-Tail Diagram</div>
+                <!-- Resultant Summary -->
+                <div class="bg-purple-50 border border-purple-200 rounded-lg px-3 py-1.5 mb-2">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="text-[10px] text-purple-500 font-semibold uppercase tracking-wider">Resultant
+                            </div>
+                            <div class="text-base font-bold text-purple-700"><span id="val-res-mag">0.0</span> <span
+                                    class="text-xs font-medium text-purple-400">m/s</span></div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[10px] text-purple-500 font-semibold uppercase tracking-wider">Bearing
+                            </div>
+                            <div class="text-sm font-bold text-purple-700" id="val-res-bearing">0.0°</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vector Diagram Canvas -->
+                <div class="flex justify-center mb-2 bg-slate-50 rounded-lg border border-slate-100 overflow-hidden">
+                    <canvas id="analysis-canvas" width="260" height="150"></canvas>
                 </div>
 
                 <!-- Component Table -->
-                <div class="text-xs">
+                <div class="text-xs space-y-0.5">
                     <div
-                        class="grid grid-cols-3 gap-2 pb-1 font-semibold text-slate-500 border-b border-slate-100 mb-1">
+                        class="grid grid-cols-3 gap-2 pb-1 font-semibold text-slate-400 text-[10px] uppercase tracking-wider">
                         <div>Vector</div>
-                        <div class="text-right">X (Horiz)</div>
-                        <div class="text-right">Y (Vert)</div>
+                        <div class="text-right">X</div>
+                        <div class="text-right">Y</div>
                     </div>
 
                     <!-- Object Row -->
                     <div class="grid grid-cols-3 gap-2 py-1 items-center">
                         <div class="flex items-center gap-1.5 font-medium text-red-600">
-                            <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                            <div class="w-5 h-1 rounded-full bg-red-500"></div>
                             <span id="lbl-obj">Boat</span>
                         </div>
-                        <div class="text-right font-mono" id="val-ox">0.0</div>
-                        <div class="text-right font-mono" id="val-oy">0.0</div>
+                        <div class="text-right font-mono text-slate-700" id="val-ox">0.0</div>
+                        <div class="text-right font-mono text-slate-700" id="val-oy">0.0</div>
                     </div>
 
                     <!-- Medium Row -->
                     <div class="grid grid-cols-3 gap-2 py-1 items-center">
                         <div class="flex items-center gap-1.5 font-medium text-blue-600">
-                            <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+                            <div class="w-5 h-1 rounded-full bg-blue-500"></div>
                             <span id="lbl-med">River</span>
                         </div>
-                        <div class="text-right font-mono" id="val-mx">0.0</div>
-                        <div class="text-right font-mono" id="val-my">0.0</div>
+                        <div class="text-right font-mono text-slate-700" id="val-mx">0.0</div>
+                        <div class="text-right font-mono text-slate-700" id="val-my">0.0</div>
                     </div>
 
                     <!-- Resultant Row -->
-                    <div
-                        class="grid grid-cols-3 gap-2 py-1 items-center border-t border-slate-100 mt-1 pt-1 bg-purple-50/50 rounded-sm">
+                    <div class="grid grid-cols-3 gap-2 py-1.5 items-center border-t border-purple-100 mt-1">
                         <div class="flex items-center gap-1.5 font-bold text-purple-700">
-                            <div class="w-2 h-2 rounded-full bg-purple-600"></div>
-                            <span>Resultant</span>
+                            <div class="w-5 h-1 rounded-full bg-purple-600"></div>
+                            <span>Result</span>
                         </div>
                         <div class="text-right font-mono font-bold text-purple-700" id="val-rx">0.0</div>
                         <div class="text-right font-mono font-bold text-purple-700" id="val-ry">0.0</div>
@@ -480,6 +494,8 @@
             valMy: document.getElementById('val-my'),
             valRx: document.getElementById('val-rx'),
             valRy: document.getElementById('val-ry'),
+            valResMag: document.getElementById('val-res-mag'),
+            valResBearing: document.getElementById('val-res-bearing'),
 
             valVNet: document.getElementById('val-vnet'),
             valAngle: document.getElementById('val-angle'),
@@ -1013,80 +1029,136 @@
             ui.valRx.innerText = vRx.toFixed(1);
             ui.valRy.innerText = vRy.toFixed(1);
 
+            // Update Resultant Summary
+            const vResMag = Math.sqrt(vRx * vRx + vRy * vRy);
+            const resBearingRad = Math.atan2(vRy, vRx);
+            const resBearing = toBearing(resBearingRad);
+            ui.valResMag.innerText = vResMag.toFixed(2);
+            ui.valResBearing.innerText = bearingToQuadrant(resBearing);
+
             // 2. Draw Mini Canvas
             const w = analysisCanvas.width;
             const h = analysisCanvas.height;
-            const cx = w / 2;
-            const cy = h / 2;
 
             actx.clearRect(0, 0, w, h);
 
-            // Draw Grid/Axes
-            actx.strokeStyle = '#e2e8f0';
-            actx.lineWidth = 1;
-            actx.beginPath();
-            actx.moveTo(0, cy); actx.lineTo(w, cy); // X Axis
-            actx.moveTo(cx, 0); actx.lineTo(cx, h); // Y Axis
-            actx.stroke();
+            // Collect all key points in velocity space (origin at 0,0)
+            const points = [
+                { x: 0, y: 0 },
+                { x: vOx, y: vOy },
+                { x: vRx, y: vRy },
+                { x: 0, y: vRy },
+                { x: vRx, y: 0 },
+            ];
 
-            // Determine Scale for Mini Canvas
-            const maxMag = state.vObj + state.vMed;
-            const padding = 15;
-            const availRad = Math.min(w, h) / 2 - padding;
-            const scale = (maxMag > 0.1 ? availRad / maxMag : 1) * 1.5;
+            // Compute bounding box in velocity space
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const p of points) {
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+            }
+
+            const bboxW = (maxX - minX) || 1;
+            const bboxH = (maxY - minY) || 1;
+
+            // Scale to fit canvas with padding for labels
+            const padding = 24;
+            const scaleX = (w - 2 * padding) / bboxW;
+            const scaleY = (h - 2 * padding) / bboxH;
+            const scale = Math.min(scaleX, scaleY);
+
+            // Center the bounding box in the canvas
+            const centerVelX = (minX + maxX) / 2;
+            const centerVelY = (minY + maxY) / 2;
+            const offsetX = w / 2 - centerVelX * scale;
+            const offsetY = h / 2 + centerVelY * scale;
+
+            function toCanvas(vx, vy) {
+                return { x: offsetX + vx * scale, y: offsetY - vy * scale };
+            }
 
             // Helper to draw arrow
-            function drawMiniArrow(fx, fy, vx, vy, color, dash = []) {
-                const tx = fx + vx * scale;
-                const ty = fy - vy * scale; // Canvas Y flip
-
+            function drawMiniArrow(from, to, color) {
                 actx.beginPath();
-                actx.moveTo(fx, fy);
-                actx.lineTo(tx, ty);
+                actx.moveTo(from.x, from.y);
+                actx.lineTo(to.x, to.y);
                 actx.strokeStyle = color;
-                actx.lineWidth = 2;
-                actx.setLineDash(dash);
+                actx.lineWidth = 2.5;
                 actx.stroke();
-                actx.setLineDash([]);
 
-                // Arrowhead
-                const head = 6;
-                const angle = Math.atan2(-vy, vx);
+                const head = 7;
+                const angle = Math.atan2(to.y - from.y, to.x - from.x);
                 actx.beginPath();
-                actx.moveTo(tx, ty);
-                actx.lineTo(tx - head * Math.cos(angle - Math.PI / 6), ty - head * Math.sin(angle - Math.PI / 6));
-                actx.lineTo(tx - head * Math.cos(angle + Math.PI / 6), ty - head * Math.sin(angle + Math.PI / 6));
+                actx.moveTo(to.x, to.y);
+                actx.lineTo(to.x - head * Math.cos(angle - Math.PI / 6), to.y - head * Math.sin(angle - Math.PI / 6));
+                actx.lineTo(to.x - head * Math.cos(angle + Math.PI / 6), to.y - head * Math.sin(angle + Math.PI / 6));
                 actx.fillStyle = color;
                 actx.fill();
             }
 
-            // Draw Tip-to-Tail Diagram
-            // 1. V_obj (Red) from Origin
-            drawMiniArrow(cx, cy, vOx, vOy, '#ef4444');
+            // Helper to draw label on a vector
+            function drawVectorLabel(from, to, label, color) {
+                const mx = (from.x + to.x) / 2;
+                const my = (from.y + to.y) / 2;
+                // Offset perpendicular to the vector direction
+                const dx = to.x - from.x;
+                const dy = to.y - from.y;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                if (len < 5) return; // Too short to label
+                const nx = -dy / len * 12; // Perpendicular offset
+                const ny = dx / len * 12;
 
-            // 2. V_med (Blue) from Tip of Red
-            const tipRx = cx + vOx * scale;
-            const tipRy = cy - vOy * scale;
-            drawMiniArrow(tipRx, tipRy, vMx, vMy, '#3b82f6');
+                actx.save();
+                actx.font = 'bold 10px Inter, sans-serif';
+                actx.textAlign = 'center';
+                actx.textBaseline = 'middle';
+                // Background pill
+                const metrics = actx.measureText(label);
+                const pw = metrics.width + 8;
+                const ph = 14;
+                actx.fillStyle = 'rgba(255,255,255,0.85)';
+                actx.beginPath();
+                actx.roundRect(mx + nx - pw / 2, my + ny - ph / 2, pw, ph, 3);
+                actx.fill();
+                // Text
+                actx.fillStyle = color;
+                actx.fillText(label, mx + nx, my + ny);
+                actx.restore();
+            }
 
-            // 3. V_res (Purple) from Origin to Tip of Blue
-            drawMiniArrow(cx, cy, vRx, vRy, '#9333ea');
+            // Canvas positions
+            const origin = toCanvas(0, 0);
+            const tipObj = toCanvas(vOx, vOy);
+            const tipRes = toCanvas(vRx, vRy);
 
-            // 4. Component Projections for Resultant (Dashed)
-            actx.strokeStyle = '#d8b4fe'; // Light purple
+            // Draw dashed component projections first (behind arrows)
+            const compH = toCanvas(vRx, 0);
+            const compV = toCanvas(0, vRy);
+
+            actx.strokeStyle = '#d8b4fe';
             actx.setLineDash([3, 3]);
             actx.lineWidth = 1;
-            const finalX = cx + vRx * scale;
-            const finalY = cy - vRy * scale;
-
             actx.beginPath();
-            actx.moveTo(cx, finalY); actx.lineTo(finalX, finalY); // Horiz to tip
+            actx.moveTo(compV.x, compV.y); actx.lineTo(tipRes.x, tipRes.y);
             actx.stroke();
-
             actx.beginPath();
-            actx.moveTo(finalX, cy); actx.lineTo(finalX, finalY); // Vert to tip
+            actx.moveTo(compH.x, compH.y); actx.lineTo(tipRes.x, tipRes.y);
             actx.stroke();
             actx.setLineDash([]);
+
+            // Draw arrows
+            drawMiniArrow(origin, tipObj, '#ef4444');
+            drawMiniArrow(tipObj, tipRes, '#3b82f6');
+            drawMiniArrow(origin, tipRes, '#9333ea');
+
+            // Draw labels with magnitudes
+            const objLabel = state.mode === 'river' ? 'V\u2092' : 'V\u209A';
+            const medLabel = state.mode === 'river' ? 'V\u2098' : 'V\u0345';
+            drawVectorLabel(origin, tipObj, `${objLabel} ${state.vObj.toFixed(1)}`, '#dc2626');
+            drawVectorLabel(tipObj, tipRes, `${medLabel} ${state.vMed.toFixed(1)}`, '#2563eb');
+            drawVectorLabel(origin, tipRes, `V\u1d63 ${vResMag.toFixed(1)}`, '#7c3aed');
         }
 
 
